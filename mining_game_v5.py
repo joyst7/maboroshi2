@@ -74,9 +74,28 @@ BUFF_MULT = 5
 #   手応えは粒子・効果音・ポップアップ側で既に出している。
 SHAKE_BREAK = 1.6          # 鉱石を砕いた
 SHAKE_PHANTOM = 4.0        # 幻の鉱床を砕いた
+SHAKE_HIT = 2.4            # 邪魔者に弾かれた
 SHAKE_DECAY = 0.80         # 1フレームごとの減衰率
 SHAKE_SPEED = 1.7          # 往復の速さ
 SHAKE_MIN = 0.25           # これを下回ったら止める
+
+# --- 邪魔者（坑道のコウモリ）---------------------------------------------------
+#   鉱石も金も奪わない。仕事は「プレイヤーを1秒どかすこと」だけ。
+#   どかされると COMBO_TIMEOUT の 0.67秒を割ってコンボが切れ、
+#   火力が最大2倍から1倍に落ちる。HPよりもそちらが本当の罰。
+#   加速を鈍くしてあるので、引きつけて横に避ければ曲がりきれずに通り過ぎる。
+PEST_MAX = 2
+PEST_HIT_R = 8             # この距離まで詰められたら当たる
+PEST_ACCEL = 0.16          # 低いほど曲がれない＝避けやすい
+PEST_KNOCKBACK = 3.2
+PEST_LEAVE_TIME = 3 * FPS  # 当てたあと去るまで
+
+#   運は「出現間隔」と「予告の長さ」に効く。どちらも数値はUIに出さない。
+PEST_LUCK_INTERVAL = 0.05  # 運1につき間隔 +5%
+PEST_LUCK_WARN = 0.7       # 運1につき予告 +0.7フレーム
+
+PLAYER_MAX_HP = 3
+PLAYER_INVULN = 1 * FPS
 
 ST_TITLE = 0
 ST_PLAY = 1
@@ -237,30 +256,35 @@ FLOORS = [
         "spawn": {"copper": 72, "iron": 24, "silver": 4},
         "boss": "頑固な岩塊", "witch": "おや新入りかい。石でも持っておいで。",
         "ph_hp": 20000, "ph_gold": 2500, "ph_exp": 600, "potion": 2000,
+        "pest": {"every": 14, "speed": 1.50, "warn": 24, "linger": False},
     },
     {
         "name": "B2F 鉄の坑道", "bg": 1, "rock": 5, "pal": {4: 5, 13: 13, 9: 6},
         "spawn": {"copper": 32, "iron": 46, "silver": 20, "gold": 2},
         "boss": "鉄錆の主", "witch": "ふん、少しは見所があるじゃないか。",
         "ph_hp": 210000, "ph_gold": 26000, "ph_exp": 3500, "potion": 6000,
+        "pest": {"every": 12, "speed": 1.65, "warn": 22, "linger": False},
     },
     {
         "name": "B3F 銀の坑道", "bg": 5, "rock": 1, "pal": {4: 5, 13: 6, 9: 7},
         "spawn": {"copper": 10, "iron": 30, "silver": 42, "gold": 16, "gem": 2},
         "boss": "銀霧のぬし", "witch": "深いとこは物入りでね。高いよ。",
         "ph_hp": 2200000, "ph_gold": 210000, "ph_exp": 14000, "potion": 20000,
+        "pest": {"every": 10, "speed": 1.80, "warn": 20, "linger": False},
     },
     {
         "name": "B4F 金の坑道", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 10},
         "spawn": {"iron": 14, "silver": 34, "gold": 40, "gem": 12},
         "boss": "黄金の巨岩", "witch": "ここまで降りてやってるんだ。",
         "ph_hp": 18000000, "ph_gold": 1600000, "ph_exp": 45000, "potion": 70000,
+        "pest": {"every": 9, "speed": 1.90, "warn": 18, "linger": False},
     },
     {
         "name": "B5F 幻の坑道", "bg": 2, "rock": 1, "pal": {4: 2, 13: 14, 9: 14},
         "spawn": {"silver": 20, "gold": 42, "gem": 38},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
         "ph_hp": 160000000, "ph_gold": 0, "ph_exp": 0, "potion": 180000,
+        "pest": {"every": 8, "speed": 2.00, "warn": 16, "linger": False},
     },
 ]
 
@@ -439,6 +463,81 @@ class Ore:
 # ==============================================================================
 #  プレイヤー
 # ==============================================================================
+class Pest:
+    """坑道のコウモリ。
+
+    予告のあいだは動かず、そのあとプレイヤーへ寄ってくる。加速が鈍いので、
+    引きつけてから横へ抜ければ曲がりきれずに通り過ぎる。つまり「見ていれば避けられる」。
+    当てても鉱石は壊さないし金も奪わない。奪うのはコンボと、避けるための数秒だけ。
+    """
+
+    def __init__(self, x, y, speed, warn, linger):
+        self.x, self.y = float(x), float(y)
+        self.vx = self.vy = 0.0
+        self.speed = speed
+        self.warn = warn          # 予告の残りフレーム
+        self.linger = linger      # 当てたあとも居座るか（深層用）
+        self.leave = 0            # 0より大きい間はプレイヤーから離れる
+        self.gone = False         # 離れきったら消えるか
+        self.dead = False
+        self.flap = random.randrange(8)
+
+    def update(self, px, py):
+        self.flap += 1
+        if self.warn > 0:
+            self.warn -= 1
+            return
+
+        if self.leave > 0:
+            self.leave -= 1
+            if self.leave == 0 and self.gone:
+                self.dead = True
+                return
+
+        sign = -1.0 if self.leave > 0 else 1.0
+        dx, dy = px - self.x, py - self.y
+        d = math.hypot(dx, dy) or 1.0
+        self.vx += dx / d * PEST_ACCEL * sign
+        self.vy += dy / d * PEST_ACCEL * sign
+        v = math.hypot(self.vx, self.vy)
+        if v > self.speed:
+            self.vx = self.vx / v * self.speed
+            self.vy = self.vy / v * self.speed
+        self.x += self.vx
+        self.y += self.vy
+
+        if not (-24 < self.x < SCREEN_W + 24 and FIELD_TOP - 24 < self.y < FIELD_BOTTOM + 24):
+            self.dead = True
+
+    @property
+    def can_hit(self):
+        return self.warn <= 0 and self.leave <= 0
+
+    def on_hit_player(self):
+        if self.linger:
+            self.leave = PEST_LEAVE_TIME // 3   # 一度離れて、また来る
+        else:
+            self.leave = PEST_LEAVE_TIME
+            self.gone = True
+
+    def draw(self):
+        x, y = int(self.x), int(self.y)
+        if self.warn > 0:
+            # 予告。「ここから来るぞ」だけを見せる。姿はまだ出さない。
+            if (self.warn // 3) % 2 == 0:
+                pyxel.circb(x, y, 5, 8)
+                pyxel.circb(x, y, 2, 8)
+            return
+
+        # 胴と、羽ばたく翼。色13は坑道のどの床色に対しても沈まない。
+        wy = -3 if (self.flap // 4) % 2 == 0 else 1
+        pyxel.tri(x - 2, y - 1, x - 8, y + wy, x - 3, y + 2, 13)
+        pyxel.tri(x + 2, y - 1, x + 8, y + wy, x + 3, y + 2, 13)
+        pyxel.circ(x, y, 2, 13)
+        pyxel.pset(x - 1, y - 1, 8)
+        pyxel.pset(x + 1, y - 1, 8)
+
+
 class Player:
     def __init__(self):
         self.x = SCREEN_W / 2
@@ -456,6 +555,10 @@ class Player:
         self.swing = 0
         self.face = 1
         self.mine_charge = 0.0
+        self.max_hp = PLAYER_MAX_HP
+        self.hp = PLAYER_MAX_HP
+        self.invuln = 0
+        self.kbx = self.kby = 0.0   # 弾かれた勢い
 
     @property
     def pickaxe(self):
@@ -544,6 +647,14 @@ class Player:
             self.y += vy / d * self.move_speed
             if vx:
                 self.face = 1 if vx > 0 else -1
+        # ノックバックは入力とは別に乗せる。操作不能にはせず、押し戻されるだけ。
+        if abs(self.kbx) > 0.05 or abs(self.kby) > 0.05:
+            self.x += self.kbx
+            self.y += self.kby
+            self.kbx *= 0.80
+            self.kby *= 0.80
+        else:
+            self.kbx = self.kby = 0.0
         self.x = max(5, min(SCREEN_W - 5, self.x))
         self.x = max(12, min(SCREEN_W - 12, self.x))
         self.y = max(FIELD_TOP + 14, min(FIELD_BOTTOM - 14, self.y))
@@ -553,8 +664,13 @@ class Player:
             self.combo = 0
         if self.swing > 0:
             self.swing -= 1
+        if self.invuln > 0:
+            self.invuln -= 1
 
     def draw(self):
+        # 無敵の間は点滅させる。何が起きたかを一目で分からせる。
+        if self.invuln > 0 and (pyxel.frame_count // 2) % 2 == 0:
+            return
         x, y = int(self.x), int(self.y)
         if HAS_SPRITES:
             u, v = SPR_MINER[1 if self.swing > 0 else 0]
@@ -595,6 +711,8 @@ class App:
         self.player = Player()
         self.floor_index = 0
         self.ores = []
+        self.pests = []
+        self.pest_timer = 0
         self.particles = []
         self.popups = []
         self.ladder = None
@@ -643,6 +761,8 @@ class App:
         s[5].set("c2g1c1", "t", "777", "v", 22)                 # 幻が現れた
         s[6].set("c3g2e2c2", "t", "6543", "f", 16)              # 幻が消えた
         s[7].set("g2c3e3g3c4e4g4c4", "t", "77777777", "n", 9)   # 階層移動・クリア
+        s[8].set("a3", "n", "3", "f", 12)                       # コウモリの気配
+        s[9].set("c2g1", "n", "76", "f", 10)                    # 弾かれた
 
         s[20].set("c1rrrg1rrra1rrrf1rrr", "t", "6", "n", 26)    # BGM ベース
         s[21].set("rrc2rrg2rrra2rrf2rr", "p", "5", "f", 26)     # BGM 上モノ
@@ -706,6 +826,7 @@ class App:
             self.phantom_cooldown -= 1
 
         self.handle_mining()
+        self.update_pests()
 
         if pyxel.btnp(pyxel.KEY_C):
             self.use_potion()
@@ -737,6 +858,102 @@ class App:
                     break
         else:
             p.mine_charge = 0.0
+
+    # --- 邪魔者 -------------------------------------------------------------
+    def update_pests(self):
+        p = self.player
+        cfg = FLOORS[self.floor_index]["pest"]
+
+        self.pest_timer -= 1
+        if self.pest_timer <= 0:
+            self.spawn_pest(cfg)
+            self.pest_timer = self.pest_interval(cfg)
+
+        for q in self.pests:
+            q.update(p.x, p.y)
+            if (q.can_hit and p.invuln <= 0
+                    and math.hypot(q.x - p.x, q.y - p.y) < PEST_HIT_R):
+                self.hit_player(q)
+        self.pests = [q for q in self.pests if not q.dead]
+
+    def pest_interval(self, cfg):
+        """運が高いほど間隔が空く。説明はしない。"""
+        lv = self.player.upgrades["luck"]
+        return int(cfg["every"] * FPS * (1.0 + lv * PEST_LUCK_INTERVAL))
+
+    def spawn_pest(self, cfg):
+        """盤面のふちから湧かせる。プレイヤーの真横には出さない。"""
+        if len(self.pests) >= PEST_MAX:
+            return
+        pos = None
+        for _ in range(20):
+            if random.random() < 0.5:
+                x = random.choice([12, SCREEN_W - 12])
+                y = random.randint(FIELD_TOP + 14, FIELD_BOTTOM - 14)
+            else:
+                x = random.randint(14, SCREEN_W - 14)
+                y = random.choice([FIELD_TOP + 12, FIELD_BOTTOM - 12])
+            if math.hypot(x - self.player.x, y - self.player.y) > 44:
+                pos = (x, y)
+                break
+        if pos is None:
+            return
+        lv = self.player.upgrades["luck"]
+        warn = int(cfg["warn"] + lv * PEST_LUCK_WARN)
+        self.pests.append(Pest(pos[0], pos[1], cfg["speed"], warn, cfg["linger"]))
+        pyxel.play(1, 8)
+
+    def hit_player(self, pest):
+        """本体の罰はHPではなくコンボ。0.67秒で切れるので、弾かれた時点で確定で飛ぶ。"""
+        p = self.player
+        p.hp -= 1
+        p.invuln = PLAYER_INVULN
+        p.combo = 0
+        p.last_hit_frame = -999
+        p.mine_charge = 0.0
+
+        ang = math.atan2(p.y - pest.y, p.x - pest.x)
+        p.kbx = math.cos(ang) * PEST_KNOCKBACK
+        p.kby = math.sin(ang) * PEST_KNOCKBACK
+        pest.on_hit_player()
+
+        for _ in range(6):
+            self.particles.append(Particle(p.x, p.y, 8, speed=2.0, life=14))
+        self.add_shake(SHAKE_HIT)
+        pyxel.play(1, 9)
+
+        if p.hp <= 0:
+            self.on_player_down()
+        else:
+            self.set_message("邪魔された！ コンボが切れた", 8)
+
+    def on_player_down(self):
+        """HPが尽きた。B1〜B5では1階層戻されるだけで、装備も金も強化もそのまま残る。
+        失うのは時間だけ。タイムで評価されるこのゲームでは、それで十分に重い。"""
+        p = self.player
+        p.hp = p.max_hp
+        p.invuln = PLAYER_INVULN * 2
+        p.kbx = p.kby = 0.0
+        p.combo = 0
+        self.pests = []
+        self.ores = []
+        self.phantom_cooldown = PHANTOM_COOLDOWN
+        self.pest_timer = self.pest_interval(FLOORS[self.floor_index]["pest"])
+        self.add_shake(SHAKE_PHANTOM)
+        pyxel.play(1, 6)
+
+        if self.floor_index > 0:
+            self.floor_index -= 1
+            self.build_background()
+            # 一度抜けた階なので、ハシゴは見つかったままにしておく
+            self.ladder = None
+            self.spawn_ladder(SCREEN_W / 2, (FIELD_TOP + FIELD_BOTTOM) / 2)
+            self.set_message("力尽きた… " + FLOORS[self.floor_index]["name"] + " まで戻された", 8)
+        else:
+            self.set_message("力尽きた… 掘りかけの鉱石が崩れた", 8)
+
+        p.x = SCREEN_W / 2
+        p.y = (FIELD_TOP + FIELD_BOTTOM) / 2
 
     def expire_ores(self):
         alive = []
@@ -942,7 +1159,12 @@ class App:
         self.floor_index += 1
         self.ladder = None
         self.ores = []
+        self.pests = []
         self.phantom_cooldown = PHANTOM_COOLDOWN // 2
+        # 降りた直後は必ず一息つける。降りた瞬間に殴られるのは理不尽なので。
+        self.pest_timer = self.pest_interval(FLOORS[self.floor_index]["pest"])
+        self.player.hp = self.player.max_hp
+        self.player.kbx = self.player.kby = 0.0
         self.player.x = SCREEN_W / 2
         self.player.y = (FIELD_TOP + FIELD_BOTTOM) / 2
         self.build_background()
@@ -1124,6 +1346,8 @@ class App:
         for o in sorted(self.ores, key=lambda o: o.y):
             o.draw(targeted=(o is target))
         self.player.draw()
+        for q in self.pests:
+            q.draw()
         for p in self.particles:
             p.draw()
         for p in self.popups:
@@ -1206,6 +1430,19 @@ class App:
                 text_r(SCREEN_W - 4, ROW_INFO, f"強化薬 x{p.potions}", 10)
 
         text(4, ROW_HINT, "[Z]ほる [S]みせ [C]くすり [X]はしご", 5)
+
+        # 体力。階層を降りるたび全快するので、ここが尽きるのは「同じ階で3回やられた」とき。
+        for i in range(p.max_hp):
+            self.draw_heart(SCREEN_W - 4 - (p.max_hp - i) * 7, ROW_HINT + 2, i < p.hp)
+
+    @staticmethod
+    def draw_heart(x, y, filled):
+        c = 8 if filled else 5
+        pyxel.pset(x + 1, y, c)
+        pyxel.pset(x + 3, y, c)
+        pyxel.rect(x, y + 1, 5, 2, c)
+        pyxel.rect(x + 1, y + 3, 3, 1, c)
+        pyxel.pset(x + 2, y + 4, c)
 
     def draw_phantom_rows(self, ph):
         name = ph.name
