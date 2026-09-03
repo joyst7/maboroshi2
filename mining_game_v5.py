@@ -67,6 +67,17 @@ PHANTOM_WARN_TIME = 10 * FPS
 BUFF_DURATION = 20 * FPS
 BUFF_MULT = 5
 
+# --- 画面の揺れ ---------------------------------------------------------------
+#   毎フレーム乱数で座標をずらすと、掘り続けている間ずっと細かいノイズが乗って
+#   画面酔いする。当たった向きへ一度だけ弾いて、あとは振幅を減らしながら往復させる。
+#   通常ヒットと会心では揺らさない（頻度が高すぎて揺れっぱなしになるため）。
+#   手応えは粒子・効果音・ポップアップ側で既に出している。
+SHAKE_BREAK = 1.6          # 鉱石を砕いた
+SHAKE_PHANTOM = 4.0        # 幻の鉱床を砕いた
+SHAKE_DECAY = 0.80         # 1フレームごとの減衰率
+SHAKE_SPEED = 1.7          # 往復の速さ
+SHAKE_MIN = 0.25           # これを下回ったら止める
+
 ST_TITLE = 0
 ST_PLAY = 1
 ST_SHOP = 2
@@ -587,7 +598,8 @@ class App:
         self.particles = []
         self.popups = []
         self.ladder = None
-        self.shake = 0
+        self.shake = 0.0
+        self.shake_ang = 0.0
         self.message = ""
         self.message_col = 7
         self.message_timer = 0
@@ -665,8 +677,10 @@ class App:
 
         self.particles = [p for p in self.particles if p.update()]
         self.popups = [p for p in self.popups if p.update()]
-        if self.shake > 0:
-            self.shake -= 1
+        if self.shake > 0.0:
+            self.shake *= SHAKE_DECAY
+            if self.shake < SHAKE_MIN:
+                self.shake = 0.0
         if self.message_timer > 0:
             self.message_timer -= 1
 
@@ -815,7 +829,6 @@ class App:
         if crit:
             pyxel.play(0, 1)
             self.popups.append(Popup(ore.x, ore.y - ore.r - 4, f"会心 {fmt(dmg)}", 10, crit=True))
-            self.shake = max(self.shake, 4)
         else:
             pyxel.play(0, 0)
             self.popups.append(Popup(ore.x, ore.y - ore.r - 4, fmt(dmg), 7))
@@ -841,7 +854,7 @@ class App:
         for _ in range(20 if ore.phantom else 10):
             self.particles.append(
                 Particle(ore.x, ore.y, ore.col, speed=3.4, life=26, size=2 if ore.phantom else 1))
-        self.shake = max(self.shake, 12 if ore.phantom else 5)
+        self.add_shake(SHAKE_PHANTOM if ore.phantom else SHAKE_BREAK)
 
         if ore.phantom:
             self.on_phantom_break(ore)
@@ -1044,6 +1057,13 @@ class App:
         self.message_col = col
         self.message_timer = 80
 
+    def add_shake(self, amount):
+        """画面を揺らす。強い揺れが来たときだけ向きを引き直す。
+        頻度の高い出来事（通常ヒット・会心）からは呼ばないこと。"""
+        if amount > self.shake:
+            self.shake = amount
+            self.shake_ang = random.uniform(0, math.tau)
+
     # ==========================================================================
     #  描画
     # ==========================================================================
@@ -1069,9 +1089,10 @@ class App:
         pyxel.clip(0, FIELD_TOP, SCREEN_W, FIELD_BOTTOM - FIELD_TOP)
         pyxel.rect(0, FIELD_TOP, SCREEN_W, FIELD_BOTTOM - FIELD_TOP, fl["bg"])
 
-        if self.shake > 0:
-            pyxel.camera(random.randint(-self.shake, self.shake) // 2,
-                         random.randint(-self.shake, self.shake) // 2)
+        if self.shake > 0.0:
+            w = math.cos(pyxel.frame_count * SHAKE_SPEED) * self.shake
+            pyxel.camera(int(math.cos(self.shake_ang) * w),
+                         int(math.sin(self.shake_ang) * w))
 
         if HAS_SPRITES:
             # 階層ごとに岩の色を差し替えてから床を敷く
