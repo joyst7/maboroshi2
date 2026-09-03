@@ -102,6 +102,23 @@ PEST_LUCK_WARN = 0.7       # 運1につき予告 +0.7フレーム
 PLAYER_MAX_HP = 3
 PLAYER_INVULN = 1 * FPS
 
+# --- ほりほりネコ -------------------------------------------------------------
+#   掘りは手伝わない。邪魔者を追い払い、たまに落とし物を見つけてくる。
+#   ……が、本当の役目はそこではなく、坑道にネコがいるという、それだけのことにある。
+#   守りにはクールタイムがあるので、群れには通用しない。万能にはしない。
+#   値段は「金のピッケル(45000)を買うのが一段遅れる」ことを狙って置いてある。
+#   速攻ビルドには割に合わず、運ビルドには落とし物ですぐ元が取れる。
+#   つまりネコを買うかどうか自体が、どっちを目指すかの表明になる。
+CAT_PRICE = 30000
+CAT_SPEED = 1.9
+CAT_FOLLOW_DIST = 17       # これより近ければ座って待つ
+CAT_GUARD_R = 26           # この範囲に入った邪魔者に飛びかかる
+CAT_GUARD_COOL = 5 * FPS
+CAT_POUNCE_TIME = 10
+CAT_FIND_INTERVAL = 20 * FPS
+CAT_FIND_CHANCE = 0.35     # 落とし物を見つける確率。運1につき +0.03
+CAT_FIND_LUCK = 0.03
+
 ST_TITLE = 0
 ST_PLAY = 1
 ST_SHOP = 2
@@ -262,6 +279,7 @@ FLOORS = [
         "boss": "頑固な岩塊", "witch": "おや新入りかい。石でも持っておいで。",
         "ph_hp": 20000, "ph_gold": 2500, "ph_exp": 600, "potion": 2000,
         "pest": {"every": 20, "speed": 1.50, "warn": 24, "max": 1, "linger": False},
+        "cat_find": 600,
     },
     {
         "name": "B2F 鉄の坑道", "bg": 1, "rock": 5, "pal": {4: 5, 13: 13, 9: 6},
@@ -269,6 +287,7 @@ FLOORS = [
         "boss": "鉄錆の主", "witch": "ふん、少しは見所があるじゃないか。",
         "ph_hp": 210000, "ph_gold": 26000, "ph_exp": 3500, "potion": 6000,
         "pest": {"every": 18, "speed": 1.65, "warn": 22, "max": 1, "linger": False},
+        "cat_find": 1800,
     },
     {
         "name": "B3F 銀の坑道", "bg": 5, "rock": 1, "pal": {4: 5, 13: 6, 9: 7},
@@ -276,6 +295,7 @@ FLOORS = [
         "boss": "銀霧のぬし", "witch": "深いとこは物入りでね。高いよ。",
         "ph_hp": 2200000, "ph_gold": 210000, "ph_exp": 14000, "potion": 20000,
         "pest": {"every": 16, "speed": 1.80, "warn": 20, "max": 1, "linger": False},
+        "cat_find": 6000,
     },
     {
         "name": "B4F 金の坑道", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 10},
@@ -283,6 +303,7 @@ FLOORS = [
         "boss": "黄金の巨岩", "witch": "ここまで降りてやってるんだ。",
         "ph_hp": 18000000, "ph_gold": 1600000, "ph_exp": 45000, "potion": 70000,
         "pest": {"every": 14, "speed": 1.90, "warn": 18, "max": 1, "linger": False},
+        "cat_find": 20000,
     },
     {
         "name": "B5F 幻の坑道", "bg": 2, "rock": 1, "pal": {4: 2, 13: 14, 9: 14},
@@ -290,6 +311,7 @@ FLOORS = [
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
         "ph_hp": 160000000, "ph_gold": 0, "ph_exp": 0, "potion": 180000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
+        "cat_find": 50000,
     },
 ]
 
@@ -542,6 +564,15 @@ class Pest:
         self.gone = not self.linger
         self.chase = 0
 
+    def driven_off(self, fx, fy):
+        """ネコに追い払われた。もう狙わず、弾かれた向きへ逃げていく。"""
+        ang = math.atan2(self.y - fy, self.x - fx)
+        self.vx = math.cos(ang) * self.speed * 1.8
+        self.vy = math.sin(ang) * self.speed * 1.8
+        self.chase = 0
+        self.leave = PEST_LEAVE_TIME
+        self.gone = True
+
     def draw(self):
         x, y = int(self.x), int(self.y)
         if self.warn > 0:
@@ -558,6 +589,110 @@ class Pest:
         pyxel.circ(x, y, 2, 13)
         pyxel.pset(x - 1, y - 1, 8)
         pyxel.pset(x + 1, y - 1, 8)
+
+
+#   ネコのドット絵。# = 体、o = 目、= = 鼻と内耳、右向きで描いてある。
+#   身体を張るところではないので、ここは素直に見た目だけを取る。
+CAT_W = 9
+CAT_COLS = {".": None, "#": 10, "o": 0, "=": 4}
+CAT_SIT = (
+    "...#...#.",
+    "...##.##.",
+    "...#####.",
+    "..#o#=#o#",
+    "..#######",
+    ".########",
+    ".########",
+    ".##...##.",
+)
+CAT_BLINK = (
+    "...#...#.",
+    "...##.##.",
+    "...#####.",
+    "..#=#=#=#",
+    "..#######",
+    ".########",
+    ".########",
+    ".##...##.",
+)
+CAT_LEAP = (
+    ".........",
+    "...#...#.",
+    "...##.##.",
+    "...#o#o#.",
+    "#########",
+    "#########",
+    "##.....##",
+    "#.......#",
+)
+
+
+class Cat:
+    """ほりほりネコ。
+
+    掘りは手伝わない。邪魔者に飛びかかって追い払い、たまに落とし物を見つけてくる。
+    どちらもクールタイムと確率がついていて、万能にはしていない。
+    そもそもこのネコの本当の役目は、坑道にネコがいるという、それだけのことにある。
+    """
+
+    def __init__(self, x, y):
+        self.x, self.y = float(x), float(y)
+        self.face = 1
+        self.guard_cool = 0
+        self.find_timer = CAT_FIND_INTERVAL
+        self.pounce = 0             # 飛びかかりの残りフレーム
+        self.tx = self.ty = 0.0     # 飛びかかる先
+
+    def update(self, owner):
+        if self.guard_cool > 0:
+            self.guard_cool -= 1
+        if self.pounce > 0:
+            self.pounce -= 1
+            self.x += (self.tx - self.x) * 0.34
+            self.y += (self.ty - self.y) * 0.34
+            return
+
+        dx, dy = owner.x - self.x, owner.y - self.y
+        d = math.hypot(dx, dy)
+        if d > CAT_FOLLOW_DIST:
+            # 離されたら小走りになる。追いつけば座って待つ。
+            sp = CAT_SPEED * (1.7 if d > 56 else 1.0)
+            self.x += dx / d * min(sp, d)
+            self.y += dy / d * min(sp, d)
+            if abs(dx) > 1.0:
+                self.face = 1 if dx > 0 else -1
+
+    @property
+    def can_guard(self):
+        return self.guard_cool <= 0 and self.pounce <= 0
+
+    def leap(self, tx, ty):
+        self.pounce = CAT_POUNCE_TIME
+        self.tx, self.ty = tx, ty
+        self.guard_cool = CAT_GUARD_COOL
+        if abs(tx - self.x) > 1.0:
+            self.face = 1 if tx > self.x else -1
+
+    def draw(self):
+        x, y = int(self.x), int(self.y)
+        f = self.face
+        rows = CAT_LEAP if self.pounce > 0 else (
+            CAT_SIT if (pyxel.frame_count // 20) % 8 else CAT_BLINK)
+        ox = x - (CAT_W // 2)
+        oy = y - (len(rows) - 3)
+        for ry, row in enumerate(rows):
+            for rx, ch in enumerate(row):
+                c = CAT_COLS.get(ch)
+                if c is not None:
+                    # 左を向くときは左右反転して描く
+                    pyxel.pset(ox + (rx if f > 0 else CAT_W - 1 - rx), oy + ry, c)
+
+        # しっぽ。座っているあいだだけ、ゆっくり振る。細いと糸に見えるので2px。
+        if self.pounce <= 0:
+            bx = ox + (1 if f > 0 else CAT_W - 2)
+            ty = oy + 4 + int(math.sin(pyxel.frame_count * 0.10) * 2)
+            pyxel.line(bx, oy + 6, bx - f * 3, ty, 10)
+            pyxel.line(bx, oy + 7, bx - f * 3, ty + 1, 10)
 
 
 class Player:
@@ -735,6 +870,7 @@ class App:
         self.ores = []
         self.pests = []
         self.pest_timer = 0
+        self.cat = None
         self.particles = []
         self.popups = []
         self.ladder = None
@@ -785,6 +921,7 @@ class App:
         s[7].set("g2c3e3g3c4e4g4c4", "t", "77777777", "n", 9)   # 階層移動・クリア
         s[8].set("a3", "n", "3", "f", 12)                       # コウモリの気配
         s[9].set("c2g1", "n", "76", "f", 10)                    # 弾かれた
+        s[10].set("e4a4", "s", "43", "n", 7)                    # ネコが飛びかかった
 
         s[20].set("c1rrrg1rrra1rrrf1rrr", "t", "6", "n", 26)    # BGM ベース
         s[21].set("rrc2rrg2rrra2rrf2rr", "p", "5", "f", 26)     # BGM 上モノ
@@ -849,6 +986,7 @@ class App:
 
         self.handle_mining()
         self.update_pests()
+        self.update_cat()
 
         if pyxel.btnp(pyxel.KEY_C):
             self.use_potion()
@@ -924,6 +1062,40 @@ class App:
         warn = int(cfg["warn"] + lv * PEST_LUCK_WARN)
         self.pests.append(Pest(pos[0], pos[1], cfg["speed"], warn, cfg["linger"]))
         pyxel.play(1, 8)
+
+    # --- ほりほりネコ -------------------------------------------------------
+    def update_cat(self):
+        if self.cat is None:
+            return
+        p = self.player
+        cat = self.cat
+        cat.update(p)
+
+        # 邪魔者に飛びかかる。クールタイムがあるので、群れは捌けない。
+        if cat.can_guard:
+            for q in self.pests:
+                if not q.can_hit:
+                    continue
+                if math.hypot(q.x - cat.x, q.y - cat.y) < CAT_GUARD_R:
+                    cat.leap(q.x, q.y)
+                    q.driven_off(cat.x, cat.y)
+                    for _ in range(6):
+                        self.particles.append(Particle(q.x, q.y, 10, speed=2.2, life=14))
+                    pyxel.play(0, 10)
+                    break
+
+        # 落とし物。運が高いほど見つけるし、見つける額も増える（gold_multが乗る）。
+        cat.find_timer -= 1
+        if cat.find_timer <= 0:
+            cat.find_timer = CAT_FIND_INTERVAL
+            lv = p.upgrades["luck"]
+            if random.random() < CAT_FIND_CHANCE + lv * CAT_FIND_LUCK:
+                base = FLOORS[self.floor_index]["cat_find"]
+                gold = int(base * random.uniform(0.7, 1.6) * p.gold_mult)
+                p.gold += gold
+                self.popups.append(Popup(cat.x, cat.y - 10, f"+{fmt(gold)}", 10))
+                self.set_message(f"ラッキー！ ネコが {fmt(gold)} を見つけた", 10)
+                pyxel.play(1, 4)
 
     def hit_player(self, pest):
         """本体の罰はHPではなくコンボ。0.67秒で切れるので、弾かれた時点で確定で飛ぶ。"""
@@ -1189,6 +1361,10 @@ class App:
         self.player.kbx = self.player.kby = 0.0
         self.player.x = SCREEN_W / 2
         self.player.y = (FIELD_TOP + FIELD_BOTTOM) / 2
+        if self.cat is not None:
+            self.cat.x = self.player.x - 15
+            self.cat.y = self.player.y + 4
+            self.cat.pounce = 0
         self.build_background()
         pyxel.play(1, 7)
         self.set_message(FLOORS[self.floor_index]["name"] + " へ降りた", 11)
@@ -1235,6 +1411,9 @@ class App:
                               "label": f"{u['name']}  Lv.{lv}/{u['max']}",
                               "sub": u["desc"], "price": int(u["base"] * (u["rate"] ** lv)),
                               "col": 6})
+        if self.cat is None:
+            items.append({"type": "cat", "label": "ほりほりネコ",
+                          "sub": "ついてくる。邪魔者を追い払う", "price": CAT_PRICE, "col": 10})
         items.append({"type": "potion", "label": f"強化薬（所持 {p.potions}）",
                       "sub": f"攻撃力 x{BUFF_MULT} を {BUFF_DURATION // FPS}秒",
                       "price": self.potion_price(), "col": 10})
@@ -1281,6 +1460,9 @@ class App:
         elif item["type"] == "upgrade":
             p.upgrades[item["key"]] += 1
             self.set_message(f"{item['label'].split()[0]} を強化した！", 11)
+        elif item["type"] == "cat":
+            self.cat = Cat(p.x - p.face * 15, p.y + 4)
+            self.set_message("ほりほりネコが ついてきた！", 11)
         else:
             p.potions += 1
             self.set_message("強化薬を買った", 11)
@@ -1367,6 +1549,8 @@ class App:
         target = self.find_target()
         for o in sorted(self.ores, key=lambda o: o.y):
             o.draw(targeted=(o is target))
+        if self.cat is not None:
+            self.cat.draw()
         self.player.draw()
         for q in self.pests:
             q.draw()
