@@ -84,9 +84,14 @@ SHAKE_MIN = 0.25           # これを下回ったら止める
 #   どかされると COMBO_TIMEOUT の 0.67秒を割ってコンボが切れ、
 #   火力が最大2倍から1倍に落ちる。HPよりもそちらが本当の罰。
 #   加速を鈍くしてあるので、引きつけて横に避ければ曲がりきれずに通り過ぎる。
-PEST_MAX = 2
+#   避けたら報われること。永久に追尾されると「避ける」が「延命」にしかならず、
+#   ずっと逃げ続けるだけの作業になる。だから狙うのは一度きりの突進に限る。
+#   突進が終われば舵を切らず、そのまま飛び抜けて画面の外へ消える。
 PEST_HIT_R = 8             # この距離まで詰められたら当たる
 PEST_ACCEL = 0.16          # 低いほど曲がれない＝避けやすい
+PEST_CHASE_TIME = 2 * FPS  # これを過ぎたら狙うのをやめて飛び去る
+PEST_LOCK_DIST = 34        # ここまで近づくと舵が効かなくなる（直前の横抜けが通る）
+PEST_MAX_LIFE = 9 * FPS    # 何があっても消える保険
 PEST_KNOCKBACK = 3.2
 PEST_LEAVE_TIME = 3 * FPS  # 当てたあと去るまで
 
@@ -256,35 +261,35 @@ FLOORS = [
         "spawn": {"copper": 72, "iron": 24, "silver": 4},
         "boss": "頑固な岩塊", "witch": "おや新入りかい。石でも持っておいで。",
         "ph_hp": 20000, "ph_gold": 2500, "ph_exp": 600, "potion": 2000,
-        "pest": {"every": 14, "speed": 1.50, "warn": 24, "linger": False},
+        "pest": {"every": 20, "speed": 1.50, "warn": 24, "max": 1, "linger": False},
     },
     {
         "name": "B2F 鉄の坑道", "bg": 1, "rock": 5, "pal": {4: 5, 13: 13, 9: 6},
         "spawn": {"copper": 32, "iron": 46, "silver": 20, "gold": 2},
         "boss": "鉄錆の主", "witch": "ふん、少しは見所があるじゃないか。",
         "ph_hp": 210000, "ph_gold": 26000, "ph_exp": 3500, "potion": 6000,
-        "pest": {"every": 12, "speed": 1.65, "warn": 22, "linger": False},
+        "pest": {"every": 18, "speed": 1.65, "warn": 22, "max": 1, "linger": False},
     },
     {
         "name": "B3F 銀の坑道", "bg": 5, "rock": 1, "pal": {4: 5, 13: 6, 9: 7},
         "spawn": {"copper": 10, "iron": 30, "silver": 42, "gold": 16, "gem": 2},
         "boss": "銀霧のぬし", "witch": "深いとこは物入りでね。高いよ。",
         "ph_hp": 2200000, "ph_gold": 210000, "ph_exp": 14000, "potion": 20000,
-        "pest": {"every": 10, "speed": 1.80, "warn": 20, "linger": False},
+        "pest": {"every": 16, "speed": 1.80, "warn": 20, "max": 1, "linger": False},
     },
     {
         "name": "B4F 金の坑道", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 10},
         "spawn": {"iron": 14, "silver": 34, "gold": 40, "gem": 12},
         "boss": "黄金の巨岩", "witch": "ここまで降りてやってるんだ。",
         "ph_hp": 18000000, "ph_gold": 1600000, "ph_exp": 45000, "potion": 70000,
-        "pest": {"every": 9, "speed": 1.90, "warn": 18, "linger": False},
+        "pest": {"every": 14, "speed": 1.90, "warn": 18, "max": 1, "linger": False},
     },
     {
         "name": "B5F 幻の坑道", "bg": 2, "rock": 1, "pal": {4: 2, 13: 14, 9: 14},
         "spawn": {"silver": 20, "gold": 42, "gem": 38},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
         "ph_hp": 160000000, "ph_gold": 0, "ph_exp": 0, "potion": 180000,
-        "pest": {"every": 8, "speed": 2.00, "warn": 16, "linger": False},
+        "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
     },
 ]
 
@@ -464,10 +469,12 @@ class Ore:
 #  プレイヤー
 # ==============================================================================
 class Pest:
-    """坑道のコウモリ。
+    """坑道のコウモリ。一度きりの突進を仕掛けて、外したら飛び去る。
 
-    予告のあいだは動かず、そのあとプレイヤーへ寄ってくる。加速が鈍いので、
-    引きつけてから横へ抜ければ曲がりきれずに通り過ぎる。つまり「見ていれば避けられる」。
+    永久に追尾させると「避ける」が「延命」にしかならず、逃げ続けるだけの作業になる。
+    だから狙う時間に上限を置き、さらに近づくほど舵が効かないようにしてある。
+    引きつけて横へ抜ければ曲がりきれずに通り過ぎ、そのまま画面の外へ消える。
+    つまり避けきればちゃんと報われる。
     当てても鉱石は壊さないし金も奪わない。奪うのはコンボと、避けるための数秒だけ。
     """
 
@@ -475,10 +482,12 @@ class Pest:
         self.x, self.y = float(x), float(y)
         self.vx = self.vy = 0.0
         self.speed = speed
-        self.warn = warn          # 予告の残りフレーム
-        self.linger = linger      # 当てたあとも居座るか（深層用）
-        self.leave = 0            # 0より大きい間はプレイヤーから離れる
-        self.gone = False         # 離れきったら消えるか
+        self.warn = warn              # 予告の残りフレーム
+        self.linger = linger          # 外しても狙い直すか（深層用）
+        self.chase = PEST_CHASE_TIME  # 狙っていられる残り時間
+        self.age = 0
+        self.leave = 0                # 0より大きい間はプレイヤーから離れる
+        self.gone = False
         self.dead = False
         self.flap = random.randrange(8)
 
@@ -488,21 +497,36 @@ class Pest:
             self.warn -= 1
             return
 
+        self.age += 1
+        if self.age > PEST_MAX_LIFE:
+            self.dead = True
+            return
+
         if self.leave > 0:
             self.leave -= 1
-            if self.leave == 0 and self.gone:
-                self.dead = True
-                return
+            if self.leave == 0:
+                if self.gone:
+                    self.dead = True
+                    return
+                self.chase = PEST_CHASE_TIME    # 居座る個体だけ狙い直す
 
-        sign = -1.0 if self.leave > 0 else 1.0
-        dx, dy = px - self.x, py - self.y
-        d = math.hypot(dx, dy) or 1.0
-        self.vx += dx / d * PEST_ACCEL * sign
-        self.vy += dy / d * PEST_ACCEL * sign
-        v = math.hypot(self.vx, self.vy)
-        if v > self.speed:
-            self.vx = self.vx / v * self.speed
-            self.vy = self.vy / v * self.speed
+        if self.chase > 0:
+            self.chase -= 1
+            dx, dy = px - self.x, py - self.y
+            d = math.hypot(dx, dy) or 1.0
+            # 近いほど舵を弱める。突進に入ったら曲げられない＝直前の横抜けが通る。
+            steer = PEST_ACCEL * min(1.0, d / PEST_LOCK_DIST)
+            sign = -1.0 if self.leave > 0 else 1.0
+            self.vx += dx / d * steer * sign
+            self.vy += dy / d * steer * sign
+            v = math.hypot(self.vx, self.vy)
+            if v > self.speed:
+                self.vx = self.vx / v * self.speed
+                self.vy = self.vy / v * self.speed
+        elif self.vx == 0.0 and self.vy == 0.0:
+            self.dead = True
+            return
+
         self.x += self.vx
         self.y += self.vy
 
@@ -514,11 +538,9 @@ class Pest:
         return self.warn <= 0 and self.leave <= 0
 
     def on_hit_player(self):
-        if self.linger:
-            self.leave = PEST_LEAVE_TIME // 3   # 一度離れて、また来る
-        else:
-            self.leave = PEST_LEAVE_TIME
-            self.gone = True
+        self.leave = PEST_LEAVE_TIME // 3 if self.linger else PEST_LEAVE_TIME
+        self.gone = not self.linger
+        self.chase = 0
 
     def draw(self):
         x, y = int(self.x), int(self.y)
@@ -883,7 +905,7 @@ class App:
 
     def spawn_pest(self, cfg):
         """盤面のふちから湧かせる。プレイヤーの真横には出さない。"""
-        if len(self.pests) >= PEST_MAX:
+        if len(self.pests) >= cfg["max"]:
             return
         pos = None
         for _ in range(20):
