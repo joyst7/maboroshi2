@@ -2,16 +2,19 @@
 """
 幻鉱 -MABOROSHI-  スプライト生成スクリプト
 
-  このファイルを実行すると maboroshi.pyxres が出力される。
-  ゲーム本体はそれを読むだけなので、出力後は Pyxel Editor で自由に描き直してよい。
+  実行すると maboroshi_seed.pyxres（最初の種）が出力される。
+  本物のリソースは maboroshi.pyxres で、種を Pyxel Editor で開いて手描きしたもの。
+  このスクリプトは maboroshi.pyxres を上書きしないので、手描きが消える心配はない。
 
-    pyxel edit maboroshi.pyxres
+    pyxel edit maboroshi_seed.pyxres   # 種を確認・描き直し
+    pyxel edit maboroshi.pyxres        # 本物を編集
 
   約束ごと:
     色0 = 透明（描画時に抜ける）
     色1 = 輪郭線
 """
 import math
+import os
 import random
 
 import pyxel
@@ -285,8 +288,12 @@ def build():
 
     paint(img, 0, 64, LADDER)
 
-    pyxel.save("maboroshi.pyxres")
-    print("maboroshi.pyxres を書き出した")
+    # 本物のリソースは maboroshi.pyxres（Pyxel Editor で手描きしたもの）。
+    # このスクリプトはあくまで「最初の種」なので、別名で書き出して手描きを絶対に壊さない。
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maboroshi_seed.pyxres")
+    pyxel.save(out)
+    print(f"{out} を書き出した")
+    print("使うときは Pyxel Editor で開いて maboroshi.pyxres に手で反映すること")
 
 
 if __name__ == "__main__":

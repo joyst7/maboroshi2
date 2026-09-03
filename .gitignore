@@ -9,6 +9,9 @@ venv/
 *.pyxapp
 maboroshi.html
 
+# build_assets.py の出力（種。maboroshi.pyxres が本物）
+maboroshi_seed.pyxres
+
 # macOS
 .DS_Store
 
