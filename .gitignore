@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Pyxel build artifacts (regenerate with `pyxel package` / `pyxel app2html`)
+*.pyxapp
+maboroshi.html
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
