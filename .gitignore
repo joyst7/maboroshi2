@@ -6,6 +6,7 @@ __pycache__/
 venv/
 
 # Pyxel build artifacts (regenerate with `pyxel package` / `pyxel app2html`)
+# web/index.html だけは公開用なので追跡する
 *.pyxapp
 maboroshi.html
 
