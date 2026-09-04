@@ -1064,6 +1064,7 @@ class App:
         self.shop_scroll = 0
         self.play_frames = 0
         self.clear_page = 0
+        self.clear_frames = 0
         self.rank = None
         self.build_background()
 
@@ -1106,6 +1107,11 @@ class App:
         s[21].set("rrc2rrg2rrra2rrf2rr", "p", "5", "f", 26)     # BGM 上モノ
         pyxel.musics[0].set([], [], [20], [21])
 
+        # エンディング。坑道のBGMより遅く、明るく解決させる。
+        s[22].set("f1rrrc2rrrd2rrrc2rrr", "t", "4", "n", 22)    # ED ベース
+        s[23].set("f2rc3ra2rf2rg2ra2rf2rc2r", "s", "3", "n", 22)  # ED メロディ
+        pyxel.musics[1].set([], [], [22], [23])
+
     def start_bgm(self):
         if self.bgm_on:
             pyxel.playm(0, loop=True)
@@ -1113,7 +1119,8 @@ class App:
     def toggle_bgm(self):
         self.bgm_on = not self.bgm_on
         if self.bgm_on:
-            pyxel.playm(0, loop=True)
+            # クリア画面で点け直したときに坑道のBGMに戻らないようにする
+            pyxel.playm(1 if self.state == ST_CLEAR else 0, loop=True)
         else:
             pyxel.stop()
 
@@ -1514,7 +1521,10 @@ class App:
             pyxel.play(1, 7)
             self.rank = self.judge_rank()
             self.clear_page = 0
+            self.clear_frames = 0
             self.state = ST_CLEAR
+            if self.bgm_on:
+                pyxel.playm(1, loop=True)
             return
 
         pyxel.play(1, 7)
@@ -1733,6 +1743,7 @@ class App:
             self.set_message(f"怪しい薬を買った（この階であと{left}本）", 11)
 
     def update_clear(self):
+        self.clear_frames += 1
         mark, title, is_true = self.rank
         if is_true and self.clear_page == 0:
             if pyxel.btnp(pyxel.KEY_Z) or pyxel.btnp(pyxel.KEY_RETURN):
@@ -2016,19 +2027,26 @@ class App:
         pyxel.pset(cx - 6, cy - 7, 7)
         pyxel.pset(cx - 5, cy - 7, 7)
 
-        text_center(SCREEN_W // 2, 168, "最深部に眠る幻の鉱石で、", 6)
-        text_center(SCREEN_W // 2, 182, "恋人に贈る指輪をつくりたい。", 6)
+        text_center(SCREEN_W // 2, 168, "坑夫のひげは、白くなった。", 6)
+        text_center(SCREEN_W // 2, 182, "幻の鉱床は、まだ砕けていない。", 6)
 
         if (pyxel.frame_count // 15) % 2 == 0:
             text_center(SCREEN_W // 2, 210, "[Z] ではじめる", 11)
         text_center(SCREEN_W // 2, 236, "矢印:移動 Z:採掘 S:みせ M:BGM", 5)
 
     # --- クリア -------------------------------------------------------------
+    # クリア画面は上から順に立ち上げる。全部が同時に出ると結果表であって
+    # エンディングにならない。何フレーム目で何を出すかをここにまとめる。
+    CLEAR_CUE = {"title1": 8, "title2": 26, "sub": 48, "box": 70,
+                 "rows": 92, "hint": 140, "prompt": 156}
+
     def draw_clear(self):
         if self.clear_page == 1:
             self.draw_true_end()
             return
 
+        t = self.clear_frames
+        cue = self.CLEAR_CUE
         pyxel.cls(0)
         for i in range(80):
             a = i * 0.7 + pyxel.frame_count * 0.04
@@ -2039,19 +2057,21 @@ class App:
         p = self.player
         mark, title, is_true = self.rank
         col = 10 if (pyxel.frame_count // 8) % 2 == 0 else 7
-        # 縦位置は上から順に積む。text_big は (FONT_H+3)*scale の高さを取るので、
-        # 拡大文字と枠が食い合わないよう間隔をそこから逆算している。
-        big_h = (FONT_H + 3) * 2                      # 30
-        text_big(SCREEN_W // 2, 12, "幻の鉱石を", col, scale=2)
-        text_big(SCREEN_W // 2, 12 + big_h, "手に入れた", col, scale=2)
-        text_center(SCREEN_W // 2, 76, "これで、あの指輪がつくれる。", 6)
+        big_h = (FONT_H + 3) * 2
 
-        # 称号。枠の高さは中の拡大文字にそろえる
+        if t >= cue["title1"]:
+            text_big(SCREEN_W // 2, 12, "幻の鉱床を", col, scale=2)
+        if t >= cue["title2"]:
+            text_big(SCREEN_W // 2, 12 + big_h, "砕いた", col, scale=2)
+        if t >= cue["sub"]:
+            text_center(SCREEN_W // 2, 76, "―― 生涯で、はじめて。", 6)
+
         box_y, box_h = 92, big_h + 4
-        pyxel.rect(28, box_y, SCREEN_W - 56, box_h, 1)
-        pyxel.rectb(28, box_y, SCREEN_W - 56, box_h, 10)
-        text_big(56, box_y + 2, mark, 10, scale=2)
-        text_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
+        if t >= cue["box"]:
+            pyxel.rect(28, box_y, SCREEN_W - 56, box_h, 1)
+            pyxel.rectb(28, box_y, SCREEN_W - 56, box_h, 10)
+            text_big(56, box_y + 2, mark, 10, scale=2)
+            text_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
 
         rows = [
             ("クリアタイム", mmss(self.play_frames)),
@@ -2060,18 +2080,22 @@ class App:
             ("掘った鉱石", f"{p.total_mined} 個"),
         ]
         for i, (k, v) in enumerate(rows):
+            if t < cue["rows"] + i * 10:
+                break
             y = box_y + box_h + 10 + i * 14
             text(34, y, k, 6)
             text(140, y, v, 7)
 
-        if is_true:
-            if (pyxel.frame_count // 15) % 2 == 0:
-                text_center(SCREEN_W // 2, 202, "[Z] ……坑道の底から、音がする", 11)
-        else:
-            text_center(SCREEN_W // 2, 196, f"{TRUE_END_SEC // 60}分以内に幻を砕いたとき、", 13)
-            text_center(SCREEN_W // 2, 210, "この坑道の本当の姿が見えるという。", 13)
+        if t >= cue["hint"]:
+            if is_true:
+                if (pyxel.frame_count // 15) % 2 == 0:
+                    text_center(SCREEN_W // 2, 202, "[Z] ……坑道の底から、音がする", 11)
+            else:
+                text_center(SCREEN_W // 2, 196, f"{TRUE_END_SEC // 60}分以内に砕いたとき、", 13)
+                text_center(SCREEN_W // 2, 210, "この坑道の本当の姿が見えるという。", 13)
 
-        text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 6)
+        if t >= cue["prompt"]:
+            text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 6)
 
     def draw_true_end(self):
         pyxel.cls(0)
@@ -2084,8 +2108,7 @@ class App:
         text_center(SCREEN_W // 2, 22, "―― 真エンディング ――", 8)
 
         lines = [
-            "指輪はできた。",
-            "だが、砕けた岩の底に",
+            "砕けた岩の底に、",
             "下へ続く穴があった。",
             "",
             "幻の鉱床は、坑道の終わりでは",
@@ -2093,14 +2116,15 @@ class App:
             "きた何かの、いちばん浅いところ",
             "に過ぎなかった。",
             "",
-            "坑道は、まだ続いている。",
+            "ひげは、もう白い。",
+            "それでも坑道は、まだ続いている。",
         ]
         for i, s in enumerate(lines):
             if s:
-                text(30, 54 + i * 15, s, 7 if i < 8 else 10)
+                text(24, 54 + i * 15, s, 7 if i < 7 else 10)
 
         if (pyxel.frame_count // 15) % 2 == 0:
-            text_center(SCREEN_W // 2, 226, "[R] もう一度掘る", 11)
+            text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 11)
 
 
 if __name__ == "__main__":
