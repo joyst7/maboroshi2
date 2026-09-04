@@ -62,6 +62,23 @@ PHANTOM_LIFETIME_MIN = 32 * FPS
 PHANTOM_LIFETIME_MAX = 78 * FPS
 PHANTOM_COOLDOWN = 18 * FPS
 PHANTOM_SPAWN_CHANCE = 0.4
+
+# --- 撃破済みの階でのボス再出現（低層ループ対策）-------------------------------
+#   ボスは撃破後も湧き、破格の報酬をくれる。そのため階を進まず狩り続けるのが
+#   正規ルートを食うほど強かった（B4Fで毎分240万＝通常採掘の約30倍）。
+#   ただし完全に潰すのではなく、「基本は進む方が得。ただし運を積めば話は別」にする。
+#   周期の大半はクールタイムなので、確率だけでなく待ち時間と報酬も一緒に絞る。
+#   運はこの3つ全部に効く。だから運を極めた者だけ低層ループが最高効率に戻る。これは内緒。
+PHANTOM_RESPAWN_CHANCE = 0.10
+PHANTOM_RESPAWN_LUCK = 0.012          # 運1につき出現率
+PHANTOM_RESPAWN_COOLDOWN = 45 * FPS
+PHANTOM_RESPAWN_LUCK_COOL = 1.4 * FPS  # 運1につき待ちを短縮
+PHANTOM_REPEAT_REWARD = 0.12          # 2体目の報酬の割合
+PHANTOM_REPEAT_LUCK = 0.022           # 運1につき割合を戻す
+#   同じ階で狩るほど取り分が減る。これが無いと、絞っても無限に回せる蛇口のままになる。
+#   減衰0.55だと、居座って得られる合計は「ボス報酬 x 割合 x 1.8」で頭打ちになり、
+#   運を極めても最終ピッケル1本ぶんには届かない。ボーナスであって金策にはならない。
+PHANTOM_REPEAT_DECAY = 0.55
 PHANTOM_WARN_TIME = 10 * FPS
 
 # --- 怪しい薬 -----------------------------------------------------------------
@@ -924,7 +941,7 @@ class App:
         self.message_col = 7
         self.message_timer = 0
         self.phantom_cooldown = 0
-        self.phantom_defeated = set()
+        self.phantom_kills = {}      # 階 -> その階で砕いたボスの数
         self.shop_cursor = 0
         self.shop_scroll = 0
         self.play_frames = 0
@@ -1181,8 +1198,6 @@ class App:
         p.combo = 0
         self.pests = []
         self.ores = []
-        self.phantom_cooldown = PHANTOM_COOLDOWN
-        self.pest_timer = self.pest_interval(FLOORS[self.floor_index]["pest"])
         self.add_shake(SHAKE_PHANTOM)
         pyxel.play(1, 6)
 
@@ -1196,6 +1211,9 @@ class App:
         else:
             self.set_message("力尽きた… 掘りかけの鉱石が崩れた", 8)
 
+        # 戻された先の階を基準に引き直す
+        self.phantom_cooldown = self.phantom_wait()
+        self.pest_timer = self.pest_interval(FLOORS[self.floor_index]["pest"])
         p.x = SCREEN_W / 2
         p.y = (FIELD_TOP + FIELD_BOTTOM) / 2
 
@@ -1213,12 +1231,40 @@ class App:
         self.ores = alive
 
     # --- スポーン -----------------------------------------------------------
+    @property
+    def floor_cleared(self):
+        return self.phantom_kills.get(self.floor_index, 0) > 0
+
+    def phantom_wait(self):
+        """次のボスまでの待ち。撃破済みの階では長い。運がそれを取り戻す。"""
+        if not self.floor_cleared:
+            return PHANTOM_COOLDOWN
+        lv = self.player.upgrades["luck"]
+        return max(PHANTOM_COOLDOWN,
+                   int(PHANTOM_RESPAWN_COOLDOWN - lv * PHANTOM_RESPAWN_LUCK_COOL))
+
+    def phantom_chance(self):
+        if not self.floor_cleared:
+            return PHANTOM_SPAWN_CHANCE
+        lv = self.player.upgrades["luck"]
+        return min(PHANTOM_SPAWN_CHANCE,
+                   PHANTOM_RESPAWN_CHANCE + lv * PHANTOM_RESPAWN_LUCK)
+
+    def phantom_reward_rate(self):
+        """2体目以降は取り分が減り、狩るほどさらに減る。運がその全体を押し上げる。"""
+        n = self.phantom_kills.get(self.floor_index, 0)
+        if n == 0:
+            return 1.0
+        lv = self.player.upgrades["luck"]
+        base = min(1.0, PHANTOM_REPEAT_REWARD + lv * PHANTOM_REPEAT_LUCK)
+        return base * (PHANTOM_REPEAT_DECAY ** (n - 1))
+
     def try_spawn(self):
         fl = FLOORS[self.floor_index]
         has_phantom = any(o.phantom for o in self.ores)
 
         if (not has_phantom and self.phantom_cooldown <= 0
-                and random.random() < PHANTOM_SPAWN_CHANCE):
+                and random.random() < self.phantom_chance()):
             pos = self.find_spawn_pos(PHANTOM_R)
             if pos:
                 boss = Ore(pos[0], pos[1], None, self.floor_index, phantom=True)
@@ -1336,7 +1382,6 @@ class App:
 
     def on_phantom_break(self, ore):
         p = self.player
-        self.phantom_cooldown = PHANTOM_COOLDOWN
 
         if self.floor_index == len(FLOORS) - 1:
             pyxel.stop()
@@ -1347,11 +1392,13 @@ class App:
             return
 
         pyxel.play(1, 7)
-        first = self.floor_index not in self.phantom_defeated
-        self.phantom_defeated.add(self.floor_index)
-        gold = int(ore.gold * p.gold_mult)
+        first = not self.floor_cleared
+        rate = self.phantom_reward_rate()
+        self.phantom_kills[self.floor_index] = self.phantom_kills.get(self.floor_index, 0) + 1
+        self.phantom_cooldown = self.phantom_wait()
+        gold = int(ore.gold * p.gold_mult * rate)
         p.gold += gold
-        p.gain_exp(ore.exp)
+        p.gain_exp(int(ore.exp * rate))
         self.popups.append(Popup(ore.x, ore.y - 14, f"+{fmt(gold)}", 10, crit=True))
 
         if first:
@@ -1361,7 +1408,7 @@ class App:
             self.set_message(f"{ore.name}を砕いた！  +{fmt(gold)}", 11)
 
     def on_phantom_escape(self, ore):
-        self.phantom_cooldown = PHANTOM_COOLDOWN
+        self.phantom_cooldown = self.phantom_wait()
         pyxel.play(1, 6)
         if ore.hp_ratio >= 0.999:
             self.set_message(f"{ore.name}は岩壁の奥へ消えた…", 13)
