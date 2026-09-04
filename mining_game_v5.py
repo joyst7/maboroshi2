@@ -88,16 +88,22 @@ PHANTOM_WARN_TIME = 10 * FPS
 #   計算ずくのブースト運用ができなくなり、ボス前の一杯が博打になる。
 #   運は「良い段が出る確率」と「効き目の長さ」の両方に効く。
 #   倍率の数字は出さない。飲んだときの言葉だけで「これは当たりだ」と分かればいい。
-#   4.0倍は運が一定以上のときだけ抽選に現れる。運を積んだ者だけが引ける絶頂。
-#   運を最大にする必要はない。「一定以上」で十分に姿を見せる。
-POTION_JACKPOT_LUCK = 10
+#
+#   【設計ルール】薬の最大倍率は、幻のピッケルの伸び(220/75 = 2.93倍)を超えない。
+#   薬は積み上げた火力の全部に掛かるので、倍率が大きいとゲーム最高額の買い物を
+#   19分の1の値段の消耗品が上回ってしまい、ピッケルを買う意味が消える。
+#   ここを超えない限り「薬を飲めばクリア」にはならない。
+#
+#   最上段は運が一定以上のときだけ抽選に現れる。運を積んだ者だけが引ける絶頂。
+#   運が最大に近づくと最下段は抽選から消える（ハズレを引かなくなる）。
+POTION_JACKPOT_LUCK = 8
 POTION_TIERS = (
     # (倍率, 基本の重み, 運1あたりの重み, この運より下では出ない)
-    (1.5, 46, -2.0, 0),
-    (2.0, 32, 0.0, 0),
-    (2.5, 17, 1.4, 0),
-    (3.0, 5, 1.2, 0),
-    (4.0, 1, 1.4, POTION_JACKPOT_LUCK),
+    (1.3, 46, -3.0, 0),
+    (1.6, 32, -0.8, 0),
+    (1.9, 17, 1.0, 0),
+    (2.2, 5, 1.5, 0),
+    (2.6, 2, 1.6, POTION_JACKPOT_LUCK),
 )
 POTION_SEC_MIN = 10
 POTION_SEC_MAX = 22
@@ -336,7 +342,7 @@ FLOORS = [
         "name": "B1F 銅の坑道", "bg": 1, "rock": 4, "pal": {4: 4, 13: 13, 9: 9},
         "spawn": {"copper": 72, "iron": 24, "silver": 4},
         "boss": "頑固な岩塊", "witch": "おや新入りかい。石でも持っておいで。",
-        "ph_hp": 20000, "ph_gold": 2500, "ph_exp": 600, "potion": 2000,
+        "ph_hp": 20000, "ph_gold": 2500, "ph_exp": 600, "potion": 3000,
         "pest": {"every": 20, "speed": 1.50, "warn": 24, "max": 1, "linger": False},
         "cat_find": 600,
     },
@@ -344,7 +350,7 @@ FLOORS = [
         "name": "B2F 鉄の坑道", "bg": 1, "rock": 5, "pal": {4: 5, 13: 13, 9: 6},
         "spawn": {"copper": 32, "iron": 46, "silver": 20, "gold": 2},
         "boss": "鉄錆の主", "witch": "ふん、少しは見所があるじゃないか。",
-        "ph_hp": 210000, "ph_gold": 26000, "ph_exp": 3500, "potion": 6000,
+        "ph_hp": 210000, "ph_gold": 26000, "ph_exp": 3500, "potion": 12000,
         "pest": {"every": 18, "speed": 1.65, "warn": 22, "max": 1, "linger": False},
         "cat_find": 1800,
     },
@@ -352,7 +358,7 @@ FLOORS = [
         "name": "B3F 銀の坑道", "bg": 5, "rock": 1, "pal": {4: 5, 13: 6, 9: 7},
         "spawn": {"copper": 10, "iron": 30, "silver": 42, "gold": 16, "gem": 2},
         "boss": "銀霧のぬし", "witch": "深いとこは物入りでね。高いよ。",
-        "ph_hp": 2200000, "ph_gold": 210000, "ph_exp": 14000, "potion": 20000,
+        "ph_hp": 2200000, "ph_gold": 210000, "ph_exp": 14000, "potion": 60000,
         "pest": {"every": 16, "speed": 1.80, "warn": 20, "max": 1, "linger": False},
         "cat_find": 6000,
     },
@@ -360,7 +366,7 @@ FLOORS = [
         "name": "B4F 金の坑道", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 10},
         "spawn": {"iron": 14, "silver": 34, "gold": 40, "gem": 12},
         "boss": "黄金の巨岩", "witch": "ここまで降りてやってるんだ。",
-        "ph_hp": 18000000, "ph_gold": 1600000, "ph_exp": 45000, "potion": 70000,
+        "ph_hp": 18000000, "ph_gold": 1600000, "ph_exp": 45000, "potion": 300000,
         "pest": {"every": 14, "speed": 1.90, "warn": 18, "max": 1, "linger": False},
         "cat_find": 20000,
     },
@@ -368,7 +374,7 @@ FLOORS = [
         "name": "B5F 幻の坑道", "bg": 2, "rock": 1, "pal": {4: 2, 13: 14, 9: 14},
         "spawn": {"silver": 20, "gold": 42, "gem": 38},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
-        "ph_hp": 160000000, "ph_gold": 0, "ph_exp": 0, "potion": 180000,
+        "ph_hp": 160000000, "ph_gold": 0, "ph_exp": 0, "potion": 900000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
         "cat_find": 50000,
     },
@@ -1487,22 +1493,23 @@ class App:
 
         # 何が出たかは言葉だけで返す。倍率は見せない。
         # 「これは当たりだ」が言い回しで伝わればよく、数字は要らない。
-        if mult >= 4.0:
+        top = POTION_TIERS[-1][0]
+        if mult >= top:
             msg, col = "頭の芯が灼ける！ 何でも砕ける", 10
-        elif mult >= 3.0:
-            msg, col = "身体が燃えるようだ！", 10
-        elif mult >= 2.5:
+        elif mult >= 2.2:
+            msg, col = "全身が沸き立つ！", 10
+        elif mult >= 1.9:
             msg, col = "力がみなぎる！", 10
-        elif mult >= 2.0:
-            msg, col = "効いてきた", 11
+        elif mult >= 1.6:
+            msg, col = "じんわり効いてきた", 11
         else:
             msg, col = "……気のせいか？", 13
         self.set_message(msg, col)
-        if mult >= 4.0:
+        if mult >= top:
             self.add_shake(SHAKE_PHANTOM)
-        for _ in range(40 if mult >= 4.0 else (18 if mult >= 2.5 else 8)):
+        for _ in range(40 if mult >= top else (18 if mult >= 1.9 else 8)):
             self.particles.append(
-                Particle(p.x, p.y, 10 if mult < 4.0 else 7, speed=3.0, life=26))
+                Particle(p.x, p.y, 7 if mult >= top else 10, speed=3.0, life=26))
 
     def roll_potion(self):
         """効き目を引く。運は良い段の出やすさと、効いている長さの両方に効く。"""
