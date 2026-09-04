@@ -87,12 +87,17 @@ PHANTOM_WARN_TIME = 10 * FPS
 #   そこで 1.5〜3.0倍の4段階に刻み、飲むまで効き目が分からないようにする。
 #   計算ずくのブースト運用ができなくなり、ボス前の一杯が博打になる。
 #   運は「良い段が出る確率」と「効き目の長さ」の両方に効く。
+#   倍率の数字は出さない。飲んだときの言葉だけで「これは当たりだ」と分かればいい。
+#   4.0倍は運が一定以上のときだけ抽選に現れる。運を積んだ者だけが引ける絶頂。
+#   運を最大にする必要はない。「一定以上」で十分に姿を見せる。
+POTION_JACKPOT_LUCK = 10
 POTION_TIERS = (
-    # (倍率, 基本の重み, 運1あたりの重みの増減)
-    (1.5, 46, -2.0),
-    (2.0, 32, 0.0),
-    (2.5, 17, 1.4),
-    (3.0, 5, 1.2),
+    # (倍率, 基本の重み, 運1あたりの重み, この運より下では出ない)
+    (1.5, 46, -2.0, 0),
+    (2.0, 32, 0.0, 0),
+    (2.5, 17, 1.4, 0),
+    (3.0, 5, 1.2, 0),
+    (4.0, 1, 1.4, POTION_JACKPOT_LUCK),
 )
 POTION_SEC_MIN = 10
 POTION_SEC_MAX = 22
@@ -318,7 +323,7 @@ def mmss(frames):
 #  データ定義（バランス調整はここだけ触ればよい）
 # ==============================================================================
 ORE_TYPES = {
-    "copper": {"name": "銅鉱石", "hp": 40, "exp": 6, "gold": 10, "col": 9, "dark": 4, "r": 6},
+    "copper": {"name": "銅鉱石", "hp": 40, "exp": 6, "gold": 10000, "col": 9, "dark": 4, "r": 6},#テストのためgold10を改造中
     "iron": {"name": "鉄鉱石", "hp": 220, "exp": 26, "gold": 38, "col": 13, "dark": 5, "r": 7},
     "silver": {"name": "銀鉱石", "hp": 1100, "exp": 95, "gold": 150, "col": 7, "dark": 13, "r": 8},
     "gold": {"name": "金鉱石", "hp": 5200, "exp": 340, "gold": 620, "col": 10, "dark": 9, "r": 9},
@@ -1480,26 +1485,33 @@ class App:
         p.buff_end = pyxel.frame_count + int(sec * FPS)
         pyxel.play(1, 4)
 
-        # 何が出たかは、引きの良し悪しごと言葉で返す。数字だけより悔しさが残る。
-        if mult >= 3.0:
-            msg, col = f"身体が燃えるようだ！  x{mult} ({int(sec)}秒)", 10
+        # 何が出たかは言葉だけで返す。倍率は見せない。
+        # 「これは当たりだ」が言い回しで伝わればよく、数字は要らない。
+        if mult >= 4.0:
+            msg, col = "頭の芯が灼ける！ 何でも砕ける", 10
+        elif mult >= 3.0:
+            msg, col = "身体が燃えるようだ！", 10
         elif mult >= 2.5:
-            msg, col = f"力がみなぎる！  x{mult} ({int(sec)}秒)", 10
+            msg, col = "力がみなぎる！", 10
         elif mult >= 2.0:
-            msg, col = f"効いてきた  x{mult} ({int(sec)}秒)", 11
+            msg, col = "効いてきた", 11
         else:
-            msg, col = f"……気のせいか？  x{mult} ({int(sec)}秒)", 13
+            msg, col = "……気のせいか？", 13
         self.set_message(msg, col)
-        for _ in range(18 if mult >= 2.5 else 8):
-            self.particles.append(Particle(p.x, p.y, 10, speed=2.4, life=22))
+        if mult >= 4.0:
+            self.add_shake(SHAKE_PHANTOM)
+        for _ in range(40 if mult >= 4.0 else (18 if mult >= 2.5 else 8)):
+            self.particles.append(
+                Particle(p.x, p.y, 10 if mult < 4.0 else 7, speed=3.0, life=26))
 
     def roll_potion(self):
         """効き目を引く。運は良い段の出やすさと、効いている長さの両方に効く。"""
         lv = self.player.upgrades["luck"]
-        weights = [max(1.0, base + lv * per) for _, base, per in POTION_TIERS]
+        weights = [0.0 if lv < need else max(0.0, base + (lv - need) * per)
+                   for _, base, per, need in POTION_TIERS]
         r = random.uniform(0, sum(weights))
-        mult = POTION_TIERS[-1][0]
-        for (m, _, _), w in zip(POTION_TIERS, weights):
+        mult = POTION_TIERS[0][0]
+        for (m, _, _, _), w in zip(POTION_TIERS, weights):
             if r < w:
                 mult = m
                 break
@@ -1760,11 +1772,14 @@ class App:
             if p.combo >= 3:
                 left.append(f"{p.combo}コンボ x{p.combo_mult:.2f}")
             if p.buff_active:
-                left.append(f"怪しい薬 x{p.buff_mult} 残り{(p.buff_end - pyxel.frame_count) // FPS + 1}秒")
-            if left:
-                text(4, ROW_INFO, "   ".join(left), 10 if p.buff_active else 7)
-            if p.potions > 0:
-                text_r(SCREEN_W - 4, ROW_INFO, f"怪しい薬 x{p.potions}", 10)
+                left.append(f"怪しい薬 残り{(p.buff_end - pyxel.frame_count) // FPS + 1}秒")
+            s = "   ".join(left)
+            if s:
+                text(4, ROW_INFO, s, 10 if p.buff_active else 7)
+            # 右の所持数は、左と重なるときだけ引っ込める
+            held = f"怪しい薬 x{p.potions}"
+            if p.potions > 0 and 4 + text_w(s) + 8 <= SCREEN_W - 4 - text_w(held):
+                text_r(SCREEN_W - 4, ROW_INFO, held, 10)
 
         text(4, ROW_HINT, "[Z]ほる [S]みせ [C]くすり [X]はしご", 5)
         if TUNING:
@@ -1902,15 +1917,19 @@ class App:
         p = self.player
         mark, title, is_true = self.rank
         col = 10 if (pyxel.frame_count // 8) % 2 == 0 else 7
-        text_big(SCREEN_W // 2, 18, "幻の鉱石を", col, scale=2)
-        text_big(SCREEN_W // 2, 46, "手に入れた", col, scale=2)
-        text_center(SCREEN_W // 2, 74, "これで、あの指輪がつくれる。", 6)
+        # 縦位置は上から順に積む。text_big は (FONT_H+3)*scale の高さを取るので、
+        # 拡大文字と枠が食い合わないよう間隔をそこから逆算している。
+        big_h = (FONT_H + 3) * 2                      # 30
+        text_big(SCREEN_W // 2, 12, "幻の鉱石を", col, scale=2)
+        text_big(SCREEN_W // 2, 12 + big_h, "手に入れた", col, scale=2)
+        text_center(SCREEN_W // 2, 76, "これで、あの指輪がつくれる。", 6)
 
-        # 称号
-        pyxel.rect(28, 84, SCREEN_W - 56, 30, 1)
-        pyxel.rectb(28, 84, SCREEN_W - 56, 30, 10)
-        text_big(56, 88, mark, 10, scale=2)
-        text_center(SCREEN_W // 2 + 14, 94, title, 10)
+        # 称号。枠の高さは中の拡大文字にそろえる
+        box_y, box_h = 92, big_h + 4
+        pyxel.rect(28, box_y, SCREEN_W - 56, box_h, 1)
+        pyxel.rectb(28, box_y, SCREEN_W - 56, box_h, 10)
+        text_big(56, box_y + 2, mark, 10, scale=2)
+        text_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
 
         rows = [
             ("クリアタイム", mmss(self.play_frames)),
@@ -1919,18 +1938,18 @@ class App:
             ("掘った鉱石", f"{p.total_mined} 個"),
         ]
         for i, (k, v) in enumerate(rows):
-            y = 124 + i * 14
+            y = box_y + box_h + 10 + i * 14
             text(34, y, k, 6)
             text(140, y, v, 7)
 
         if is_true:
             if (pyxel.frame_count // 15) % 2 == 0:
-                text_center(SCREEN_W // 2, 190, "[Z] ……坑道の底から、音がする", 11)
+                text_center(SCREEN_W // 2, 202, "[Z] ……坑道の底から、音がする", 11)
         else:
-            text_center(SCREEN_W // 2, 186, f"{TRUE_END_SEC // 60}分以内に幻を砕いたとき、", 13)
-            text_center(SCREEN_W // 2, 200, "この坑道の本当の姿が見えるという。", 13)
+            text_center(SCREEN_W // 2, 196, f"{TRUE_END_SEC // 60}分以内に幻を砕いたとき、", 13)
+            text_center(SCREEN_W // 2, 210, "この坑道の本当の姿が見えるという。", 13)
 
-        text_center(SCREEN_W // 2, 226, "[R] もう一度掘る", 6)
+        text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 6)
 
     def draw_true_end(self):
         pyxel.cls(0)
