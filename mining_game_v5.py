@@ -57,10 +57,19 @@ ORE_LIFETIME_MAX = 50 * FPS
 MINE_REACH = 9
 OUTLINE_COL = 1                # 図形描画のときの輪郭色
 
-# 検証用。1以外にすると鉱石の実入りが変わる。
-#   バランスの値そのものを書き換えると、そのままコミットされて計測が汚れるので、
-#   手早く試したいときはここだけ触ること。必ず 1 に戻してからコミットする。
-DEBUG_GOLD_MULT = 1
+# --- 裏技 ---------------------------------------------------------------------
+#   プレイ中に 上 上 下 下 右 左 右 左 B A と入力すると所持金が増える。
+#   バランスを見るたびに ORE_TYPES の値を書き換えていると、その値がそのまま
+#   コミットされて計測が汚れる（実際に2度やった）。最初から仕込んでおけば
+#   コードを触らずに試せるので、事故そのものが起きなくなる。
+#   昔のゲームの裏技コマンドと同じノリなので、見つけた人はそのまま使ってよい。
+CHEAT_CODE = "UUDDRLRLBA"
+CHEAT_GOLD = 3000000
+CHEAT_KEYS = {
+    "U": pyxel.KEY_UP, "D": pyxel.KEY_DOWN,
+    "L": pyxel.KEY_LEFT, "R": pyxel.KEY_RIGHT,
+    "B": pyxel.KEY_B, "A": pyxel.KEY_A,
+}
 
 WALK_STRIDE = 14.0             # 何px進むごとに一歩ぶん体が上下するか
                                #   短すぎると毎フレーム跳ねて振動に見える
@@ -349,7 +358,7 @@ def mmss(frames):
 #  データ定義（バランス調整はここだけ触ればよい）
 # ==============================================================================
 ORE_TYPES = {
-    "copper": {"name": "銅鉱石", "hp": 40, "exp": 6, "gold": 1000000, "col": 9, "dark": 4, "r": 6},
+    "copper": {"name": "銅鉱石", "hp": 40, "exp": 6, "gold": 10, "col": 9, "dark": 4, "r": 6},
     "iron": {"name": "鉄鉱石", "hp": 220, "exp": 26, "gold": 38, "col": 13, "dark": 5, "r": 7},
     "silver": {"name": "銀鉱石", "hp": 1100, "exp": 95, "gold": 150, "col": 7, "dark": 13, "r": 8},
     "gold": {"name": "金鉱石", "hp": 5200, "exp": 340, "gold": 620, "col": 10, "dark": 9, "r": 9},
@@ -1062,6 +1071,7 @@ class App:
         self.phantom_kills = {}      # 階 -> その階で砕いたボスの数
         self.shop_cursor = 0
         self.shop_scroll = 0
+        self.cheat_pos = 0
         self.play_frames = 0
         self.clear_page = 0
         self.clear_frames = 0
@@ -1173,6 +1183,7 @@ class App:
         self.handle_mining()
         self.update_pests()
         self.update_cat()
+        self.check_cheat()
 
         if TUNING:
             for i in range(len(PEST_PRESETS)):
@@ -1209,6 +1220,27 @@ class App:
                     break
         else:
             p.mine_charge = 0.0
+
+    def check_cheat(self):
+        """上 上 下 下 右 左 右 左 B A で所持金が増える。
+        矢印は移動にも使うが、こちらは押した瞬間だけを見るので操作の邪魔にならない。"""
+        pressed = next((c for c, k in CHEAT_KEYS.items() if pyxel.btnp(k)), None)
+        if pressed is None:
+            return
+        if pressed == CHEAT_CODE[self.cheat_pos]:
+            self.cheat_pos += 1
+            if self.cheat_pos >= len(CHEAT_CODE):
+                self.cheat_pos = 0
+                self.player.gold += CHEAT_GOLD
+                self.set_message(f"↑↑↓↓→←→← B A      +{fmt(CHEAT_GOLD)}", 14)
+                pyxel.play(1, 3)
+                self.add_shake(SHAKE_PHANTOM)
+                for _ in range(30):
+                    self.particles.append(
+                        Particle(self.player.x, self.player.y, 14, speed=3.0, life=28))
+        else:
+            # 押し間違えたら最初から。ただし1文字目と同じキーなら、そこから数え直す。
+            self.cheat_pos = 1 if pressed == CHEAT_CODE[0] else 0
 
     # --- 邪魔者 -------------------------------------------------------------
     def update_pests(self):
@@ -1501,7 +1533,7 @@ class App:
             return
 
         pyxel.play(1, 2)
-        gold = int(ore.gold * p.gold_mult * DEBUG_GOLD_MULT)
+        gold = int(ore.gold * p.gold_mult)
         p.gold += gold
         p.total_mined += 1
         levels = p.gain_exp(ore.exp)
@@ -2070,7 +2102,9 @@ class App:
         if t >= cue["box"]:
             pyxel.rect(28, box_y, SCREEN_W - 56, box_h, 1)
             pyxel.rectb(28, box_y, SCREEN_W - 56, box_h, 10)
-            text_big(56, box_y + 2, mark, 10, scale=2)
+            # text_big は文字の上下に余白のある枠を転送するので、box_y+2 だと
+            # 文字そのものは 5px 上に寄って見える。実際のインク位置を測って合わせた。
+            text_big(56, box_y + 10, mark, 10, scale=2)
             text_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
 
         rows = [
