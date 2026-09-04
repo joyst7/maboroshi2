@@ -102,14 +102,29 @@ SHAKE_MIN = 0.25           # これを下回ったら止める
 #   避けたら報われること。永久に追尾されると「避ける」が「延命」にしかならず、
 #   ずっと逃げ続けるだけの作業になる。だから狙うのは一度きりの突進に限る。
 #   突進が終われば舵を切らず、そのまま飛び抜けて画面の外へ消える。
-#   追尾は「2秒で必ず去る」を守ったまま、その2秒の精度だけ上げてある。
+#   追尾は「2秒で必ず去る」を守ったまま、その2秒の精度だけを段階で持つ。
 #   緩すぎると、幻の鉱床が大きいせいで掘り判定を保ったまま数pxずれるだけで
 #   避けられてしまい、避けることにコストが無くなる（＝ネコを買う価値も消える）。
-#   狙いは「避けるなら掘り判定の外まで出て、すぐ戻る」を強制すること。
-PEST_HIT_R = 9             # この距離まで詰められたら当たる
-PEST_ACCEL = 0.28          # 低いほど曲がれない＝避けやすい
+#   狙いは「避けるなら掘り判定の外まで出て、コンボが切れる前に戻る」を強制すること。
+#
+#   ここの手触りは計算では出せないので、遊びながら 1〜5 キーで切り替えて選ぶ。
+#   決まったら PEST_LEVEL の既定値にして TUNING を False にする。
+TUNING = True
+PEST_PRESETS = (
+    #  名前        当たり判定  舵が切れる距離  加速   速度倍率
+    ("そのまま",        9,        20,        0.28,   1.00),
+    ("少し強い",       11,        15,        0.32,   1.05),
+    ("強い",           12,        11,        0.38,   1.12),
+    ("かなり強い",      14,         8,        0.45,   1.20),
+    ("鬼",             16,         6,        0.55,   1.30),
+)
+PEST_LEVEL = 1
 PEST_CHASE_TIME = 2 * FPS  # これを過ぎたら狙うのをやめて飛び去る
-PEST_LOCK_DIST = 20        # ここまで近づくと舵が効かなくなる（直前の横抜けが通る）
+
+
+def pest_tuning():
+    """(名前, 当たり判定, 舵が切れる距離, 加速, 速度倍率)"""
+    return PEST_PRESETS[PEST_LEVEL]
 PEST_MAX_LIFE = 9 * FPS    # 何があっても消える保険
 PEST_KNOCKBACK = 3.2
 PEST_LEAVE_TIME = 3 * FPS  # 当てたあと去るまで
@@ -556,7 +571,8 @@ class Pest:
             dx, dy = px - self.x, py - self.y
             d = math.hypot(dx, dy) or 1.0
             # 近いほど舵を弱める。突進に入ったら曲げられない＝直前の横抜けが通る。
-            steer = PEST_ACCEL * min(1.0, d / PEST_LOCK_DIST)
+            _, _, lock, accel, _ = pest_tuning()
+            steer = accel * min(1.0, d / lock)
             sign = -1.0 if self.leave > 0 else 1.0
             self.vx += dx / d * steer * sign
             self.vy += dy / d * steer * sign
@@ -597,17 +613,21 @@ class Pest:
         if self.warn > 0:
             # 予告。「ここから来るぞ」だけを見せる。姿はまだ出さない。
             if (self.warn // 3) % 2 == 0:
-                pyxel.circb(x, y, 5, 8)
+                r = pest_tuning()[1]
+                pyxel.circb(x, y, r // 2, 8)
                 pyxel.circb(x, y, 2, 8)
             return
 
         # 胴と、羽ばたく翼。色13は坑道のどの床色に対しても沈まない。
-        wy = -3 if (self.flap // 4) % 2 == 0 else 1
-        pyxel.tri(x - 2, y - 1, x - 8, y + wy, x - 3, y + 2, 13)
-        pyxel.tri(x + 2, y - 1, x + 8, y + wy, x + 3, y + 2, 13)
-        pyxel.circ(x, y, 2, 13)
-        pyxel.pset(x - 1, y - 1, 8)
-        pyxel.pset(x + 1, y - 1, 8)
+        # 翼の端を当たり判定に合わせる。見えている大きさと当たる大きさを一致させる。
+        r = pest_tuning()[1]
+        b = max(2, r // 4)
+        wy = -(r // 3) if (self.flap // 4) % 2 == 0 else r // 5
+        pyxel.tri(x - b, y - 1, x - r, y + wy, x - b - 1, y + b, 13)
+        pyxel.tri(x + b, y - 1, x + r, y + wy, x + b + 1, y + b, 13)
+        pyxel.circ(x, y, b, 13)
+        pyxel.pset(x - b + 1, y - 1, 8)
+        pyxel.pset(x + b - 1, y - 1, 8)
 
 
 #   ネコのドット絵。# = 体、o = 目、= = 鼻と内耳、右向きで描いてある。
@@ -1009,6 +1029,11 @@ class App:
         self.update_pests()
         self.update_cat()
 
+        if TUNING:
+            for i in range(len(PEST_PRESETS)):
+                if pyxel.btnp(pyxel.KEY_1 + i):
+                    globals()["PEST_LEVEL"] = i
+                    self.set_message(f"コウモリ: {PEST_PRESETS[i][0]}", 14)
         if pyxel.btnp(pyxel.KEY_C):
             self.use_potion()
         if pyxel.btnp(pyxel.KEY_S):
@@ -1053,7 +1078,7 @@ class App:
         for q in self.pests:
             q.update(p.x, p.y)
             if (q.can_hit and p.invuln <= 0
-                    and math.hypot(q.x - p.x, q.y - p.y) < PEST_HIT_R):
+                    and math.hypot(q.x - p.x, q.y - p.y) < pest_tuning()[1]):
                 self.hit_player(q)
         self.pests = [q for q in self.pests if not q.dead]
 
@@ -1081,7 +1106,8 @@ class App:
             return
         lv = self.player.upgrades["luck"]
         warn = int(cfg["warn"] + lv * PEST_LUCK_WARN)
-        self.pests.append(Pest(pos[0], pos[1], cfg["speed"], warn, cfg["linger"]))
+        self.pests.append(Pest(pos[0], pos[1], cfg["speed"] * pest_tuning()[4],
+                               warn, cfg["linger"]))
         pyxel.play(1, 8)
 
     # --- ほりほりネコ -------------------------------------------------------
@@ -1691,6 +1717,9 @@ class App:
                 text_r(SCREEN_W - 4, ROW_INFO, f"怪しい薬 x{p.potions}", 10)
 
         text(4, ROW_HINT, "[Z]ほる [S]みせ [C]くすり [X]はしご", 5)
+        if TUNING:
+            text_r(SCREEN_W - 4 - p.max_hp * 7 - 6, ROW_HINT,
+                   f"[1-5]コウモリ:{PEST_PRESETS[PEST_LEVEL][0]}", 14)
 
         # 体力。階層を降りるたび全快するので、ここが尽きるのは「同じ階で3回やられた」とき。
         for i in range(p.max_hp):
