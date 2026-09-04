@@ -55,6 +55,12 @@ ORE_LIFETIME_MIN = 25 * FPS
 ORE_LIFETIME_MAX = 50 * FPS
 
 MINE_REACH = 9
+
+# 検証用。1以外にすると鉱石の実入りが変わる。
+#   バランスの値そのものを書き換えると、そのままコミットされて計測が汚れるので、
+#   手早く試したいときはここだけ触ること。必ず 1 に戻してからコミットする。
+DEBUG_GOLD_MULT = 1
+
 WALK_STRIDE = 14.0             # 何px進むごとに一歩ぶん体が上下するか
                                #   短すぎると毎フレーム跳ねて振動に見える
 COMBO_TIMEOUT = 20
@@ -332,7 +338,7 @@ def mmss(frames):
 #  データ定義（バランス調整はここだけ触ればよい）
 # ==============================================================================
 ORE_TYPES = {
-    "copper": {"name": "銅鉱石", "hp": 40, "exp": 6, "gold": 10000, "col": 9, "dark": 4, "r": 6},#テストのためgold10を改造中
+    "copper": {"name": "銅鉱石", "hp": 40, "exp": 6, "gold": 10, "col": 9, "dark": 4, "r": 6},
     "iron": {"name": "鉄鉱石", "hp": 220, "exp": 26, "gold": 38, "col": 13, "dark": 5, "r": 7},
     "silver": {"name": "銀鉱石", "hp": 1100, "exp": 95, "gold": 150, "col": 7, "dark": 13, "r": 8},
     "gold": {"name": "金鉱石", "hp": 5200, "exp": 340, "gold": 620, "col": 10, "dark": 9, "r": 9},
@@ -1438,7 +1444,7 @@ class App:
             return
 
         pyxel.play(1, 2)
-        gold = int(ore.gold * p.gold_mult)
+        gold = int(ore.gold * p.gold_mult * DEBUG_GOLD_MULT)
         p.gold += gold
         p.total_mined += 1
         levels = p.gain_exp(ore.exp)
