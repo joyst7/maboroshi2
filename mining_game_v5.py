@@ -2028,7 +2028,7 @@ class App:
         pyxel.pset(cx - 5, cy - 7, 7)
 
         text_center(SCREEN_W // 2, 168, "最深部に眠るという「幻の鉱石」。", 6)
-        text_center(SCREEN_W // 2, 182, "一攫千金を夢見て、地下へ潜る。", 6)
+        text_center(SCREEN_W // 2, 182, "一攫千金を夢見て地下へ潜る。", 6)
 
         if (pyxel.frame_count // 15) % 2 == 0:
             text_center(SCREEN_W // 2, 210, "[Z] ではじめる", 11)
@@ -2062,9 +2062,9 @@ class App:
         if t >= cue["title1"]:
             text_big(SCREEN_W // 2, 12, "幻の鉱石を", col, scale=2)
         if t >= cue["title2"]:
-            text_big(SCREEN_W // 2, 12 + big_h, "手に入れた", col, scale=2)
+            text_big(SCREEN_W // 2, 12 + big_h, "手に入れた！", col, scale=2)
         if t >= cue["sub"]:
-            text_center(SCREEN_W // 2, 76, "これだけあれば、一生遊んで暮らせる。", 6)
+            text_center(SCREEN_W // 2, 76, "これだけあれば一生遊んで暮らせる！", 6)
 
         box_y, box_h = 92, big_h + 4
         if t >= cue["box"]:
@@ -2110,15 +2110,15 @@ class App:
         lines = [
             "地上へ戻ろうとした、そのとき。",
             "",
-            "幻の鉱石があった場所の奥から、",
+            "幻の鉱石があった場所の奥から",
             "青白い光が漏れていた。",
             "",
-            "岩を砕くと、見たこともない",
+            "岩を砕くと 見たこともない",
             "鉱石が埋まっていた。",
-            "しかも、岩壁の向こうまで",
+            "しかも岩壁の向こうまで",
             "どこまでも続いている。",
             "",
-            "つるはしを、握り直した。",
+            "つるはしを握り直した。",
         ]
         for i, s in enumerate(lines):
             if s:
