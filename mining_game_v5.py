@@ -8,7 +8,7 @@
     Z ......... 採掘（押しっぱなしで自動連打。手動連打はそれより速く掘れる）
     X ......... ハシゴを降りる
     S ......... ショップ
-    C ......... 強化薬を使う
+    C ......... 怪しい薬を飲む
     M ......... BGM ON/OFF
     R ......... リスタート（クリア後）
     ESC ....... 終了
@@ -64,8 +64,23 @@ PHANTOM_COOLDOWN = 18 * FPS
 PHANTOM_SPAWN_CHANCE = 0.4
 PHANTOM_WARN_TIME = 10 * FPS
 
-BUFF_DURATION = 20 * FPS
-BUFF_MULT = 5
+# --- 怪しい薬 -----------------------------------------------------------------
+#   旧「強化薬」。5倍20秒は強すぎた。最終ピッケルより安いのに、装備なしで
+#   最終ボスを殴り倒せてしまう。バイキルトが2倍であることを思えば、5倍も4倍も狂っている。
+#   そこで 1.5〜3.0倍の4段階に刻み、飲むまで効き目が分からないようにする。
+#   計算ずくのブースト運用ができなくなり、ボス前の一杯が博打になる。
+#   運は「良い段が出る確率」と「効き目の長さ」の両方に効く。
+POTION_TIERS = (
+    # (倍率, 基本の重み, 運1あたりの重みの増減)
+    (1.5, 46, -2.0),
+    (2.0, 32, 0.0),
+    (2.5, 17, 1.4),
+    (3.0, 5, 1.2),
+)
+POTION_SEC_MIN = 10
+POTION_SEC_MAX = 22
+POTION_LUCK_SEC = 0.05     # 運が高いほど長い方に寄る
+POTION_PER_FLOOR = 3       # 1フロアで買える上限。まとめ買いは残すが青天井にはしない
 
 # --- 画面の揺れ ---------------------------------------------------------------
 #   毎フレーム乱数で座標をずらすと、掘り続けている間ずっと細かいノイズが乗って
@@ -704,7 +719,9 @@ class Player:
         self.gold = 0
         self.owned = {0}          # 所持しているピッケルの番号
         self.potions = 0
+        self.potions_bought = 0    # 今いるフロアで買った数
         self.buff_end = -1
+        self.buff_mult = 1.0       # 飲んだときに決まる
         self.combo = 0
         self.last_hit_frame = -999
         self.upgrades = {u["key"]: 0 for u in UPGRADES}
@@ -764,7 +781,7 @@ class Player:
     def attack_damage(self, crit):
         dmg = self.base_attack * PICKAXES[self.pickaxe]["mult"] * self.combo_mult
         if self.buff_active:
-            dmg *= BUFF_MULT
+            dmg *= self.buff_mult
         if crit:
             dmg *= self.crit_mult
         return int(dmg)
@@ -776,7 +793,7 @@ class Player:
         dmg *= 1.0 + min(COMBO_MAX, 60) * 0.01
         dmg *= 1.0 + self.crit_rate * (self.crit_mult - 1.0)
         if self.buff_active:
-            dmg *= BUFF_MULT
+            dmg *= self.buff_mult
         return dmg * self.mining_rate
 
     def gain_exp(self, amount):
@@ -1358,6 +1375,7 @@ class App:
         # 降りた直後は必ず一息つける。降りた瞬間に殴られるのは理不尽なので。
         self.pest_timer = self.pest_interval(FLOORS[self.floor_index]["pest"])
         self.player.hp = self.player.max_hp
+        self.player.potions_bought = 0
         self.player.kbx = self.player.kby = 0.0
         self.player.x = SCREEN_W / 2
         self.player.y = (FIELD_TOP + FIELD_BOTTOM) / 2
@@ -1374,14 +1392,42 @@ class App:
     def use_potion(self):
         p = self.player
         if p.potions <= 0:
-            self.set_message("強化薬を持っていない", 13)
+            self.set_message("怪しい薬を持っていない", 13)
             return
         p.potions -= 1
-        p.buff_end = pyxel.frame_count + BUFF_DURATION
+        mult, sec = self.roll_potion()
+        p.buff_mult = mult
+        p.buff_end = pyxel.frame_count + int(sec * FPS)
         pyxel.play(1, 4)
-        self.set_message(f"強化薬！ 攻撃力 x{BUFF_MULT} ({BUFF_DURATION // FPS}秒)", 10)
-        for _ in range(18):
+
+        # 何が出たかは、引きの良し悪しごと言葉で返す。数字だけより悔しさが残る。
+        if mult >= 3.0:
+            msg, col = f"身体が燃えるようだ！  x{mult} ({int(sec)}秒)", 10
+        elif mult >= 2.5:
+            msg, col = f"力がみなぎる！  x{mult} ({int(sec)}秒)", 10
+        elif mult >= 2.0:
+            msg, col = f"効いてきた  x{mult} ({int(sec)}秒)", 11
+        else:
+            msg, col = f"……気のせいか？  x{mult} ({int(sec)}秒)", 13
+        self.set_message(msg, col)
+        for _ in range(18 if mult >= 2.5 else 8):
             self.particles.append(Particle(p.x, p.y, 10, speed=2.4, life=22))
+
+    def roll_potion(self):
+        """効き目を引く。運は良い段の出やすさと、効いている長さの両方に効く。"""
+        lv = self.player.upgrades["luck"]
+        weights = [max(1.0, base + lv * per) for _, base, per in POTION_TIERS]
+        r = random.uniform(0, sum(weights))
+        mult = POTION_TIERS[-1][0]
+        for (m, _, _), w in zip(POTION_TIERS, weights):
+            if r < w:
+                mult = m
+                break
+            r -= w
+        # 運が高いほど長い方へ寄せる
+        t = random.random() ** (1.0 / (1.0 + lv * POTION_LUCK_SEC))
+        sec = POTION_SEC_MIN + (POTION_SEC_MAX - POTION_SEC_MIN) * t
+        return mult, round(sec)
 
     # --- ショップ -----------------------------------------------------------
     def potion_price(self):
@@ -1414,9 +1460,12 @@ class App:
         if self.cat is None:
             items.append({"type": "cat", "label": "ほりほりネコ",
                           "sub": "ついてくる。邪魔者を追い払う", "price": CAT_PRICE, "col": 10})
-        items.append({"type": "potion", "label": f"強化薬（所持 {p.potions}）",
-                      "sub": f"攻撃力 x{BUFF_MULT} を {BUFF_DURATION // FPS}秒",
-                      "price": self.potion_price(), "col": 10})
+        left = POTION_PER_FLOOR - p.potions_bought
+        items.append({"type": "potion",
+                      "label": f"怪しい薬（所持 {p.potions}）",
+                      "sub": ("飲むまで効き目はわからない"
+                              if left > 0 else "この階ではもう売ってくれない"),
+                      "price": self.potion_price() if left > 0 else None, "col": 10})
         return items
 
     SHOP_ROWS = 6
@@ -1465,7 +1514,9 @@ class App:
             self.set_message("ほりほりネコが ついてきた！", 11)
         else:
             p.potions += 1
-            self.set_message("強化薬を買った", 11)
+            p.potions_bought += 1
+            left = POTION_PER_FLOOR - p.potions_bought
+            self.set_message(f"怪しい薬を買った（この階であと{left}本）", 11)
 
     def update_clear(self):
         mark, title, is_true = self.rank
@@ -1629,11 +1680,11 @@ class App:
             if p.combo >= 3:
                 left.append(f"{p.combo}コンボ x{p.combo_mult:.2f}")
             if p.buff_active:
-                left.append(f"強化薬 残り{(p.buff_end - pyxel.frame_count) // FPS + 1}秒")
+                left.append(f"怪しい薬 x{p.buff_mult} 残り{(p.buff_end - pyxel.frame_count) // FPS + 1}秒")
             if left:
                 text(4, ROW_INFO, "   ".join(left), 10 if p.buff_active else 7)
             if p.potions > 0:
-                text_r(SCREEN_W - 4, ROW_INFO, f"強化薬 x{p.potions}", 10)
+                text_r(SCREEN_W - 4, ROW_INFO, f"怪しい薬 x{p.potions}", 10)
 
         text(4, ROW_HINT, "[Z]ほる [S]みせ [C]くすり [X]はしご", 5)
 
