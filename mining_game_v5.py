@@ -343,6 +343,13 @@ ORE_TYPES = {
     "silver": {"name": "銀鉱石", "hp": 1100, "exp": 95, "gold": 150, "col": 7, "dark": 13, "r": 8},
     "gold": {"name": "金鉱石", "hp": 5200, "exp": 340, "gold": 620, "col": 10, "dark": 9, "r": 9},
     "gem": {"name": "宝石鉱脈", "hp": 18000, "exp": 950, "gold": 2200, "col": 11, "dark": 3, "r": 10},
+    # 深層用。終盤のDPSは毎秒300万に達するので、HPを桁で上げないと
+    # 「掘っている」感触が出ず、通り過ぎるだけで砕けてしまう。
+    "bismuth": {"name": "蒼鉛鉱", "hp": 1500000, "exp": 2500, "gold": 6000,
+                "col": 12, "dark": 1, "r": 11},
+    # 幻の鉱床のかけら。運を積むほど見つかる。最深部だけ。
+    "shard": {"name": "幻片", "hp": 6000000, "exp": 8000, "gold": 28000,
+              "col": 14, "dark": 2, "r": 11},
 }
 PHANTOM_R = 12
 
@@ -373,7 +380,7 @@ FLOORS = [
     },
     {
         "name": "B4F 金の坑道", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 10},
-        "spawn": {"iron": 14, "silver": 34, "gold": 40, "gem": 12},
+        "spawn": {"iron": 10, "silver": 30, "gold": 38, "gem": 18, "bismuth": 4},
         "boss": "黄金の巨岩", "witch": "ここまで降りてやってるんだ。",
         "ph_hp": 18000000, "ph_gold": 1600000, "ph_exp": 45000, "potion": 300000,
         "pest": {"every": 14, "speed": 1.90, "warn": 18, "max": 1, "linger": False},
@@ -381,7 +388,9 @@ FLOORS = [
     },
     {
         "name": "B5F 幻の坑道", "bg": 2, "rock": 1, "pal": {4: 2, 13: 14, 9: 14},
-        "spawn": {"silver": 20, "gold": 42, "gem": 38},
+        "spawn": {"silver": 14, "gold": 32, "gem": 34, "bismuth": 16},
+        # 幻片は運を積むほど見つかる。運0では滅多に出ない。
+        "spawn_luck": {"shard": 0.55},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
         "ph_hp": 160000000, "ph_gold": 0, "ph_exp": 0, "potion": 900000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
@@ -396,7 +405,9 @@ PICKAXES = [
     {"name": "鉄のピッケル", "mult": 9, "price": 4000, "col": 6},
     {"name": "金のピッケル", "mult": 26, "price": 45000, "col": 10},
     {"name": "ダイヤのピッケル", "mult": 75, "price": 400000, "col": 12},
-    {"name": "幻のピッケル", "mult": 220, "price": 3500000, "col": 8},#3500000
+    # 値段は「ボス初回撃破の合計(1,838,500) + 深層での採掘」で届く額に置く。
+    # 低層ループは裏技であって基本ルートではないので、それを当てにした値付けはしない。
+    {"name": "幻のピッケル", "mult": 220, "price": 1800000, "col": 8},
 ]
 
 UPGRADES = [
@@ -517,6 +528,19 @@ class Ore:
         if self.hit_shake > 0:
             self.hit_shake -= 1
 
+    def draw_shape(self, x, y):
+        """スプライトが無いときの図形描画。新しい鉱石はまず これで出る。"""
+        col, dark = self.col, self.dark
+        if self.phantom:
+            period = 6 if self.remain_frames < PHANTOM_WARN_TIME else 14
+            col, dark = ((8, 2) if (pyxel.frame_count // period) % 2 == 0 else (14, 1))
+        pyxel.circ(x, y, self.r, dark)
+        pyxel.circ(x, y, self.r - 1, col)
+        for sx, sy in self.speckles:
+            pyxel.pset(x + sx, y + sy, dark)
+        pyxel.pset(x - self.r * 0.4, y - self.r * 0.45, 7)
+        pyxel.pset(x - self.r * 0.4 + 1, y - self.r * 0.45, 7)
+
     def draw(self, targeted=False):
         ox = oy = 0
         if self.hit_shake > 0:
@@ -530,19 +554,14 @@ class Ore:
                 # 床の色に埋もれないよう、暗い縁を敷いてから描く
                 pyxel.circ(x, y, 13, 0)
                 pyxel.blt(x - 12, y - 12, 0, u, v, 24, 24, COLKEY)
-            else:
+            elif self.kind in SPR_ORE:
                 u, v = SPR_ORE[self.kind]
                 pyxel.blt(x - 8, y - 8, 0, u, v, 16, 16, COLKEY)
+            else:
+                # まだ絵が無い種類。描いて SPR_ORE に足せば自動で切り替わる。
+                self.draw_shape(x, y)
         else:
-            col, dark = self.col, self.dark
-            if self.phantom:
-                period = 6 if self.remain_frames < PHANTOM_WARN_TIME else 14
-                col, dark = ((8, 2) if (pyxel.frame_count // period) % 2 == 0 else (14, 1))
-            pyxel.circ(x, y, self.r, dark)
-            pyxel.circ(x, y, self.r - 1, col)
-            for sx, sy in self.speckles:
-                pyxel.pset(x + sx, y + sy, dark)
-            pyxel.pset(x - self.r * 0.4, y - self.r * 0.45, 7)
+            self.draw_shape(x, y)
             pyxel.pset(x - self.r * 0.4 + 1, y - self.r * 0.45, 7)
 
         shown = int((1.0 - self.hp_ratio) * 3.99)
@@ -1353,10 +1372,18 @@ class App:
 
         if len([o for o in self.ores if not o.phantom]) >= MAX_ORE_ON_SCREEN:
             return
-        kind = self.weighted_kind(fl["spawn"])
+        kind = self.weighted_kind(self.spawn_table(fl))
         pos = self.find_spawn_pos(ORE_TYPES[kind]["r"])
         if pos:
             self.ores.append(Ore(pos[0], pos[1], kind, self.floor_index))
+
+    def spawn_table(self, fl):
+        """その階のスポーン表。運で増える枠があれば足して返す。"""
+        table = dict(fl["spawn"])
+        lv = self.player.upgrades["luck"]
+        for kind, per in fl.get("spawn_luck", {}).items():
+            table[kind] = table.get(kind, 0) + per * lv
+        return table
 
     @staticmethod
     def weighted_kind(table):
