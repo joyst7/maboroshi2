@@ -2027,8 +2027,8 @@ class App:
         pyxel.pset(cx - 6, cy - 7, 7)
         pyxel.pset(cx - 5, cy - 7, 7)
 
-        text_center(SCREEN_W // 2, 168, "最深部に眠る、幻の鉱床。", 6)
-        text_center(SCREEN_W // 2, 182, "まだ誰も砕いたことがない。", 6)
+        text_center(SCREEN_W // 2, 168, "最深部に眠るという「幻の鉱石」。", 6)
+        text_center(SCREEN_W // 2, 182, "一攫千金を夢見て、地下へ潜る。", 6)
 
         if (pyxel.frame_count // 15) % 2 == 0:
             text_center(SCREEN_W // 2, 210, "[Z] ではじめる", 11)
@@ -2064,7 +2064,7 @@ class App:
         if t >= cue["title2"]:
             text_big(SCREEN_W // 2, 12 + big_h, "手に入れた", col, scale=2)
         if t >= cue["sub"]:
-            text_center(SCREEN_W // 2, 76, "長年の夢が、ついにかなった。", 6)
+            text_center(SCREEN_W // 2, 76, "これだけあれば、一生遊んで暮らせる。", 6)
 
         box_y, box_h = 92, big_h + 4
         if t >= cue["box"]:
@@ -2108,19 +2108,21 @@ class App:
         text_center(SCREEN_W // 2, 22, "―― 真エンディング ――", 8)
 
         lines = [
-            "砕けた岩の底に、",
-            "下へ続く穴があいていた。",
+            "地上へ戻ろうとした、そのとき。",
             "",
-            "幻の鉱床は、坑道の終わりでは",
-            "なかった。もっと深くから伸びて",
-            "きた何かの、先端にすぎなかった。",
+            "幻の鉱石があった場所の奥から、",
+            "青白い光が漏れていた。",
             "",
-            "坑道は、まだ続いている。",
-            "坑夫は、さらに下を目指した。",
+            "岩を砕くと、見たこともない",
+            "鉱石が埋まっていた。",
+            "しかも、岩壁の向こうまで",
+            "どこまでも続いている。",
+            "",
+            "つるはしを、握り直した。",
         ]
         for i, s in enumerate(lines):
             if s:
-                text(24, 54 + i * 15, s, 7 if i < 7 else 10)
+                text(22, 50 + i * 15, s, 10 if i == len(lines) - 1 else 7)
 
         if (pyxel.frame_count // 15) % 2 == 0:
             text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 11)
