@@ -55,6 +55,8 @@ ORE_LIFETIME_MIN = 25 * FPS
 ORE_LIFETIME_MAX = 50 * FPS
 
 MINE_REACH = 9
+WALK_STRIDE = 14.0             # 何px進むごとに一歩ぶん体が上下するか
+                               #   短すぎると毎フレーム跳ねて振動に見える
 COMBO_TIMEOUT = 20
 COMBO_MAX = 100
 
@@ -183,6 +185,7 @@ CAT_POUNCE_TIME = 10
 CAT_FIND_INTERVAL = 20 * FPS
 CAT_FIND_CHANCE = 0.35     # 落とし物を見つける確率。運1につき +0.03
 CAT_FIND_LUCK = 0.03
+CAT_STRIDE = 9.0           # 何px進むごとに足を踏みかえるか
 
 ST_TITLE = 0
 ST_PLAY = 1
@@ -685,6 +688,31 @@ CAT_BLINK = (
     ".########",
     ".##...##.",
 )
+#   歩行は2枚。足が前後に開く / そろう。座り絵のままだと氷の上を滑って見える。
+#   全フレームを同じ行数にそろえておくこと。行数で位置が動くと足元がぶれる。
+#   踏みかえの浮きは行数ではなく、描画時のオフセットで出す。
+CAT_WALK = (
+    (
+        "...#...#.",
+        "...##.##.",
+        "...#####.",
+        "..#o#=#o#",
+        "..#######",
+        ".########",
+        ".########",
+        "##.....##",
+    ),
+    (
+        "...#...#.",
+        "...##.##.",
+        "...#####.",
+        "..#o#=#o#",
+        "..#######",
+        ".########",
+        ".########",
+        "..##.##..",
+    ),
+)
 CAT_LEAP = (
     ".........",
     "...#...#.",
@@ -712,6 +740,8 @@ class Cat:
         self.find_timer = CAT_FIND_INTERVAL
         self.pounce = 0             # 飛びかかりの残りフレーム
         self.tx = self.ty = 0.0     # 飛びかかる先
+        self.walk = 0.0             # 歩いた距離。足を交互に出すのに使う
+        self.moving = False
 
     def update(self, owner):
         if self.guard_cool > 0:
@@ -724,13 +754,18 @@ class Cat:
 
         dx, dy = owner.x - self.x, owner.y - self.y
         d = math.hypot(dx, dy)
-        if d > CAT_FOLLOW_DIST:
+        self.moving = d > CAT_FOLLOW_DIST
+        if self.moving:
             # 離されたら小走りになる。追いつけば座って待つ。
             sp = CAT_SPEED * (1.7 if d > 56 else 1.0)
-            self.x += dx / d * min(sp, d)
-            self.y += dy / d * min(sp, d)
+            step = min(sp, d)
+            self.x += dx / d * step
+            self.y += dy / d * step
+            self.walk += step / CAT_STRIDE
             if abs(dx) > 1.0:
                 self.face = 1 if dx > 0 else -1
+        else:
+            self.walk = 0.0
 
     @property
     def can_guard(self):
@@ -746,10 +781,19 @@ class Cat:
     def draw(self):
         x, y = int(self.x), int(self.y)
         f = self.face
-        rows = CAT_LEAP if self.pounce > 0 else (
-            CAT_SIT if (pyxel.frame_count // 20) % 8 else CAT_BLINK)
+        bob = 0
+        if self.pounce > 0:
+            rows = CAT_LEAP
+        elif self.moving:
+            # 歩いている間は足を交互に。踏みかえるたび1px浮く。
+            # まばたきは座っているときだけ。
+            step = int(self.walk) % 2
+            rows = CAT_WALK[step]
+            bob = -step
+        else:
+            rows = CAT_SIT if (pyxel.frame_count // 20) % 8 else CAT_BLINK
         ox = x - (CAT_W // 2)
-        oy = y - (len(rows) - 3)
+        oy = y - (len(rows) - 3) + bob
         for ry, row in enumerate(rows):
             for rx, ch in enumerate(row):
                 c = CAT_COLS.get(ch)
@@ -757,12 +801,15 @@ class Cat:
                     # 左を向くときは左右反転して描く
                     pyxel.pset(ox + (rx if f > 0 else CAT_W - 1 - rx), oy + ry, c)
 
-        # しっぽ。座っているあいだだけ、ゆっくり振る。細いと糸に見えるので2px。
+        # しっぽ。細いと糸に見えるので2px。
+        # 座っているときはゆっくり振り、歩いているときは立てたまま運ぶ。
         if self.pounce <= 0:
             bx = ox + (1 if f > 0 else CAT_W - 2)
-            ty = oy + 4 + int(math.sin(pyxel.frame_count * 0.10) * 2)
-            pyxel.line(bx, oy + 6, bx - f * 3, ty, 10)
-            pyxel.line(bx, oy + 7, bx - f * 3, ty + 1, 10)
+            by = oy + len(rows) - 2  # 常に同じ行数なので足元と揃う
+            sway = 0 if self.moving else int(math.sin(pyxel.frame_count * 0.10) * 2)
+            ty = by - 2 + sway
+            pyxel.line(bx, by, bx - f * 3, ty, 10)
+            pyxel.line(bx, by + 1, bx - f * 3, ty + 1, 10)
 
 
 class Player:
@@ -784,10 +831,16 @@ class Player:
         self.swing = 0
         self.face = 1
         self.mine_charge = 0.0
+        self.walk = 0.0            # 歩いた距離。歩幅ごとに上下させる
         self.max_hp = PLAYER_MAX_HP
         self.hp = PLAYER_MAX_HP
         self.invuln = 0
         self.kbx = self.kby = 0.0   # 弾かれた勢い
+
+    @property
+    def step_bob(self):
+        """歩いている間だけ、一歩ごとに1px浮く。止まれば0。"""
+        return -1 if (self.walk % 1.0) < 0.5 and self.walk > 0.0 else 0
 
     @property
     def pickaxe(self):
@@ -876,6 +929,12 @@ class Player:
             self.y += vy / d * self.move_speed
             if vx:
                 self.face = 1 if vx > 0 else -1
+            # 坑夫のスプライトは「立ち」と「振り」の2枚しかなく歩行の絵が無い。
+            # 絵を足さずに歩いて見せるため、歩幅ごとに体を1px持ち上げる。
+            # これだけで氷の上を滑っているようには見えなくなる。
+            self.walk += self.move_speed / WALK_STRIDE
+        else:
+            self.walk = 0.0
         # ノックバックは入力とは別に乗せる。操作不能にはせず、押し戻されるだけ。
         if abs(self.kbx) > 0.05 or abs(self.kby) > 0.05:
             self.x += self.kbx
@@ -900,7 +959,7 @@ class Player:
         # 無敵の間は点滅させる。何が起きたかを一目で分からせる。
         if self.invuln > 0 and (pyxel.frame_count // 2) % 2 == 0:
             return
-        x, y = int(self.x), int(self.y)
+        x, y = int(self.x), int(self.y) + self.step_bob
         if HAS_SPRITES:
             u, v = SPR_MINER[1 if self.swing > 0 else 0]
             # 幅を負にすると左右反転して描ける
