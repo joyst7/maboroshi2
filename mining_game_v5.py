@@ -65,15 +65,20 @@ OUTLINE_COL = 1                # 図形描画のときの輪郭色
 #   昔のゲームの裏技コマンドと同じノリなので、見つけた人はそのまま使ってよい。
 # --- 深層のボス戦：亀裂 -------------------------------------------------------
 #   深層のボスは、弱ったところで亀裂が走る。左右に動く印が中央の帯に
-#   重なった瞬間に Z を押すと大きく削れる。
-#   狙いは「火力を出して Z 長押し」だけでは倒せなくすること。
-#   押しっぱなしの自動採掘は従来どおり小ダメージのままで、
-#   亀裂に効くのは「押した瞬間」だけ。手動の一押しが腕前になる。
+#   重なった瞬間に ENTER を押すとボーナスダメージ。外すとボスが回復する。
+#
+#   これは「使わなくてよいおまけ」。採掘は本編とまったく同じ Z 長押しのまま。
+#   一度これをボス戦の本体（Z長押しでは倒せない仕組み）にしたが、
+#   本編と同じ顔で始まったゲームが途中から別ゲームになるのは裏切りだった。
+#   風来のシレンで、後半のダンジョンだけ急にリズムゲーになるようなもの。
+#   潜る前から特異ダンジョンと分かっていれば選べるが、途中変更は蛇足。
+#   なので採掘には一切干渉させず、右手が空いているときだけ狙える賭けにする。
 #
 #   既存のステータスがそのまま別の意味を持つ:
 #     会心率      -> 当たり帯の広さ（低いとど真ん中でしか通らない）
 #     会心ダメージ -> 通ったときの倍率
 #     採掘速度    -> 印が遅くなる（狙いやすくなる）
+CRACK_KEY = pyxel.KEY_RETURN   # 左手はZを押しっぱなし、右手でこれを叩く
 CRACK_HP = 0.6                 # ボスのHPがこれを下回ると亀裂が走る
 CRACK_SPEED = 0.021            # 印の速さ（1フレームで動く割合）
 CRACK_SPEED_PER_LV = 0.075     # 採掘速度1につき遅くなる割合
@@ -81,17 +86,15 @@ CRACK_SPEED_PER_LV = 0.075     # 採掘速度1につき遅くなる割合
 #   人間の反応では一度も通らず、深層に来た時点で詰みになる。
 CRACK_ZONE = 0.11              # 当たり帯の半幅の基本
 CRACK_ZONE_PER_LV = 0.008      # 会心率1につき広がる
-#   威力は会心ダメージで変わるが、差は2倍に圧縮する。
-#   帯の広さ(会心率)と掛け算になると、ビルド差が40倍に開いて
-#   「会心を捨てた人は絶対に倒せない」「極めた人は3秒で終わる」の両極になる。
-#   狙いやすさで差をつけ、威力の差は控えめにする。
-CRACK_POWER = 8.0              # 通ったときの基本倍率
+#   威力は「長押し何秒ぶんか」で置く。一撃の何倍、にするとビルドによって
+#   価値が桁で変わり、賭けとして成立しなくなる。
+#   ただしボス最大HPに対する上限をかぶせる。上限があると、火力が低い人ほど
+#   相対的に大きな助けになり、強い人は使わなくても倒せる形に落ち着く。
+CRACK_SECONDS = 4.0            # ど真ん中で長押し何秒ぶん削れるか
+CRACK_MAX_RATIO = 0.12         # ただしボス最大HPのこの割合が上限
 CRACK_CD_FLOOR = 0.5           # 会心ダメージ0でもこの割合は出る
 CRIT_MULT_MAX = 2.0 + 24 * 0.4  # 会心ダメージを深層まで振り切った値
-#   亀裂が出ているあいだ、通常の採掘はボスにほとんど通らない。
-#   火力で押し切れてしまうと、強い人ほどタイミングを無視するのが最適になる。
-#   「長押しだけでは倒せない」を調整ではなくルールで担保する。
-CRACK_GUARD = 0.06             # 亀裂中の通常ダメージの通り
+CRACK_HEAL = 0.02              # 外したときにボスが回復する割合（最大HP比）
 CRACK_COOL = 12                # 押した後の硬直
 
 # --- 掘った数の節目 -----------------------------------------------------------
@@ -108,7 +111,7 @@ MINED_STEP_ATK = 6         # 節目1回あたりの攻撃力
 #   さらにHPバーとダメージ数字が1px差で重なっていて、バーも見えていなかった。
 #   ただし「読めないほど数字が溢れる」爽快感も確かにあるので、正解は一つではない。
 #   実機で D キーを押して切り替え、良かったものを既定にする。
-TUNING_DMG = True
+TUNING_DMG = False
 DMG_MODES = (
     ("全部出す", "all"),        # 従来どおり1発ごと。読めないが勢いはある
     ("まとめて出す", "accum"),   # 鉱石ごとに1つ、殴った分を足していく
@@ -492,7 +495,7 @@ FLOORS = [
         "spawn": {"gold": 10, "gem": 22, "bismuth": 26, "shard": 24, "abyss": 18},
         "spawn_luck": {"shard": 0.4, "abyss": 0.5},
         "boss": "深層の主", "witch": "……まだ来るのかい。もう驚かないよ。",
-        "ph_hp": 600000000, "ph_gold": 2500000, "ph_exp": 120000, "potion": 1200000,
+        "ph_hp": 500000000, "ph_gold": 2500000, "ph_exp": 120000, "potion": 1200000,
         # 当てても去らずに狙い直す。ネコのクールタイム5秒では捌ききれなくなる。
         "pest": {"every": 11, "speed": 2.10, "warn": 16, "max": 2, "linger": True},
         "cat_find": 130000,
@@ -1320,6 +1323,11 @@ class App:
             self.phantom_cooldown -= 1
 
         self.update_crack()
+        if (self.crack_pos is not None and self.crack_cool <= 0
+                and pyxel.btnp(CRACK_KEY)):
+            ph = self.phantom_on_field()
+            if ph is not None:
+                self.crack_attempt(ph)
         self.handle_mining()
         self.update_pests()
         self.update_cat()
@@ -1353,12 +1361,7 @@ class App:
 
         if pyxel.btnp(pyxel.KEY_Z):
             p.mine_charge = 0.0
-            # 亀裂が出ているあいだ、ボスへの「押した瞬間」はタイミング判定になる。
-            # 押しっぱなしの自動採掘は下の分岐のまま変わらない。
-            if (self.crack_pos is not None and self.crack_cool <= 0
-                    and target is not None and target.phantom):
-                self.crack_attempt(target)
-            elif target is not None:
+            if target is not None:
                 self.mine(target)
         elif pyxel.btn(pyxel.KEY_Z):
             p.mine_charge += p.mining_rate / FPS
@@ -1395,7 +1398,7 @@ class App:
             self.crack_pos = random.uniform(0.15, 0.85)
             self.crack_dir = random.choice((-1, 1))
             self.crack_cool = 0
-            self.set_message("岩が締まった！  亀裂を狙って [Z]", 10)
+            self.set_message("亀裂が走った！  狙えるなら [ENTER]", 10)
             pyxel.play(1, 5)
         if self.crack_cool > 0:
             self.crack_cool -= 1
@@ -1407,7 +1410,8 @@ class App:
             self.crack_pos, self.crack_dir = 1.0, -1
 
     def crack_attempt(self, ph):
-        """亀裂に合わせて押した。中央に近いほど大きく削れる。"""
+        """亀裂に合わせて押した。中央に近いほど大きく削れ、外すとボスが回復する。
+        使わなくても倒せる。使えば速い。外すと遅くなる。それだけの賭け。"""
         p = self.player
         self.crack_cool = CRACK_COOL
         d = abs(self.crack_pos - 0.5) * 2.0        # 0=中央 1=端
@@ -1419,8 +1423,8 @@ class App:
         if d <= z:
             acc = 1.0 - d / z                       # 1.0=ど真ん中
             cd = CRACK_CD_FLOOR + (1.0 - CRACK_CD_FLOOR) * min(1.0, p.crit_mult / CRIT_MULT_MAX)
-            mult = CRACK_POWER * cd * (0.35 + 0.65 * acc)
-            dmg = int(p.attack_damage(False) * mult)
+            base = min(p.average_dps * CRACK_SECONDS, ph.max_hp * CRACK_MAX_RATIO)
+            dmg = int(base * cd * (0.35 + 0.65 * acc))
             ph.hp -= dmg
             ph.hit_shake = 5
             p.combo += 1
@@ -1434,9 +1438,13 @@ class App:
             if ph.hp <= 0:
                 self.break_ore(ph)
         else:
-            ph.hp -= max(1, int(p.attack_damage(False) * CRACK_GUARD))
-            pyxel.play(0, 0)
-            self.popups.append(Popup(ph.x, ph.y - ph.r - 16, "空振り", 13, exact=True))
+            heal = int(ph.max_hp * CRACK_HEAL)
+            ph.hp = min(ph.max_hp, ph.hp + heal)
+            pyxel.play(1, 6)
+            self.popups.append(
+                Popup(ph.x, ph.y - ph.r - 16, f"亀裂が塞がった +{fmt(heal)}", 12, exact=True))
+            for _ in range(10):
+                self.particles.append(Particle(ph.x, ph.y, 12, speed=1.8, life=20))
 
     def check_cheat(self):
         """上 上 下 下 右 左 右 左 B A で所持金が増える。
@@ -1705,9 +1713,6 @@ class App:
 
         crit = random.random() < p.crit_rate
         dmg = p.attack_damage(crit)
-        if ore.phantom and self.crack_pos is not None:
-            # 岩が締まっている。削れるのは亀裂を突いたときだけ。
-            dmg = max(1, int(dmg * CRACK_GUARD))
         first_hit = not ore.hit_once
         ore.hit_once = True
         ore.hp -= dmg
@@ -2309,6 +2314,7 @@ class App:
 
         mx = bx + int(bw * self.crack_pos)
         pyxel.rect(mx - 1, by - 2, 3, 11, 7)
+        text_r(bx - 3, by - 2, "[ENTER]", 10 if (pyxel.frame_count // 12) % 2 else 13)
 
     # --- ショップ -----------------------------------------------------------
     def draw_shop(self):
