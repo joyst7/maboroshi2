@@ -84,7 +84,7 @@ DMG_MODES = (
     ("会心だけ", "crit"),        # 通常は数字なし。会心だけ跳ねる
     ("出さない", "none"),        # 数字なし。HPバーと粒子だけ
 )
-DMG_MODE = 1
+DMG_MODE = 0                   # 実機で選んだ結果、全部出すのが一番良かった
 DMG_ACC_LIFE = 24              # まとめて表示のときの表示継続フレーム
 
 CHEAT_CODE = "UUDDRLRLBA"
@@ -499,16 +499,30 @@ class Particle:
 
 
 class Popup:
-    def __init__(self, x, y, s, col, crit=False):
-        self.x = x + random.uniform(-4, 4)
+    """飛び出す数字。
+
+    通常ダメージは同じ位置に出すと、速掘り中に十数個が積み重なって
+    まったく読めなくなる。散らして出し、さらに左右へ流すことで、
+    数字が溢れる勢いはそのままに、一発いくらかは読み取れるようにする。
+    """
+
+    def __init__(self, x, y, s, col, crit=False, spread=0.0):
+        self.x = x + random.uniform(-spread, spread) if spread else x + random.uniform(-4, 4)
         self.y = y
         self.s = s
         self.col = col
         self.life = 26 if crit else 18
-        self.vy = -1.4 if crit else -1.0
+        if crit:
+            self.vx, self.vy = 0.0, -1.4
+        else:
+            # 上へ昇りながら左右へ逃がす。同時に出た数字どうしが離れていく。
+            self.vx = random.uniform(-1.8, 1.8)
+            self.vy = -random.uniform(0.6, 1.6)
 
     def update(self):
+        self.x += self.vx
         self.y += self.vy
+        self.vx *= 0.98
         self.vy *= 0.9
         self.life -= 1
         return self.life > 0
@@ -1560,7 +1574,10 @@ class App:
         else:
             pyxel.play(0, 0)
             if mode == "all":
-                self.popups.append(Popup(ore.x, ore.y - ore.r - 14, fmt(dmg), 7))
+                # 鉱石の上あたりに散らして出す。真上に固定すると積み重なって読めない。
+                self.popups.append(Popup(
+                    ore.x, ore.y - ore.r - random.uniform(2, 28), fmt(dmg), 7,
+                    spread=ore.r + 18))
         if mode == "accum":
             ore.acc_dmg += dmg
             ore.acc_life = DMG_ACC_LIFE
