@@ -63,6 +63,14 @@ OUTLINE_COL = 1                # 図形描画のときの輪郭色
 #   コミットされて計測が汚れる（実際に2度やった）。最初から仕込んでおけば
 #   コードを触らずに試せるので、事故そのものが起きなくなる。
 #   昔のゲームの裏技コマンドと同じノリなので、見つけた人はそのまま使ってよい。
+# --- 掘った数の節目 -----------------------------------------------------------
+#   店に気づかず、ただ掘り続けるだけで遊ぶ人がいる。実際に木のピッケルのまま
+#   レベルアップだけで B1F を抜けた子がいた。そういう遊び方にも飴が届くように、
+#   店を通さない伸び方をここに置く。ゴールドだと店を知らない人には意味がないので、
+#   攻撃力そのものを伸ばす。
+MINED_STEP = 100           # 何個ごとに節目にするか
+MINED_STEP_ATK = 6         # 節目1回あたりの攻撃力
+
 # --- ダメージ表示 -------------------------------------------------------------
 #   採掘速度が上がると毎秒18回まで振れる。ポップアップの寿命は18フレームなので
 #   常時11個が同じ場所に重なり、1発いくらなのかまったく読めなくなる。
@@ -935,8 +943,14 @@ class Player:
         return int(22 * (self.level ** 1.85))
 
     @property
+    def mined_steps(self):
+        """掘った数の節目を何回越えたか。"""
+        return self.total_mined // MINED_STEP
+
+    @property
     def base_attack(self):
-        return 8 + (self.level - 1) * 3 + self.upgrades["power"] * 4
+        return (8 + (self.level - 1) * 3 + self.upgrades["power"] * 4
+                + self.mined_steps * MINED_STEP_ATK)
 
     @property
     def crit_rate(self):
@@ -1582,9 +1596,17 @@ class App:
         pyxel.play(1, 2)
         gold = int(ore.gold * p.gold_mult)
         p.gold += gold
+        before_steps = p.mined_steps
         p.total_mined += 1
         levels = p.gain_exp(ore.exp)
         self.popups.append(Popup(ore.x, ore.y - 10, f"+{fmt(gold)}", 10))
+
+        if p.mined_steps > before_steps:
+            pyxel.play(1, 3)
+            self.set_message(f"{p.total_mined}個！  腕が上がった  攻撃力 +{MINED_STEP_ATK}", 10)
+            self.add_shake(SHAKE_BREAK)
+            for _ in range(20):
+                self.particles.append(Particle(p.x, p.y, 10, speed=2.8, life=26))
 
         if levels:
             pyxel.play(1, 3)
