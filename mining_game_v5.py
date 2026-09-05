@@ -50,6 +50,10 @@ ROW_HINT = 241                 # 操作ヒント
 #  ゲーム定数
 # ==============================================================================
 MAX_ORE_ON_SCREEN = 7
+#   深層の「鉱床ニョキニョキ」で増える分。上限だけ上げても、湧く速さが
+#   22フレームに1個のままだと画面が埋まらない（終盤は即座に砕けるため）。
+#   1回のスポーンで複数湧かせて、初めて画面が鉱石で埋まる。
+VEIN_PER_SPAWN = 3             # 何レベルごとに1回のスポーン数が増えるか
 ORE_SPAWN_INTERVAL = 22
 ORE_LIFETIME_MIN = 25 * FPS
 ORE_LIFETIME_MAX = 50 * FPS
@@ -63,40 +67,6 @@ OUTLINE_COL = 1                # 図形描画のときの輪郭色
 #   コミットされて計測が汚れる（実際に2度やった）。最初から仕込んでおけば
 #   コードを触らずに試せるので、事故そのものが起きなくなる。
 #   昔のゲームの裏技コマンドと同じノリなので、見つけた人はそのまま使ってよい。
-# --- 深層のボス戦：亀裂 -------------------------------------------------------
-#   深層のボスは、弱ったところで亀裂が走る。左右に動く印が中央の帯に
-#   重なった瞬間に ENTER を押すとボーナスダメージ。外すとボスが回復する。
-#
-#   これは「使わなくてよいおまけ」。採掘は本編とまったく同じ Z 長押しのまま。
-#   一度これをボス戦の本体（Z長押しでは倒せない仕組み）にしたが、
-#   本編と同じ顔で始まったゲームが途中から別ゲームになるのは裏切りだった。
-#   風来のシレンで、後半のダンジョンだけ急にリズムゲーになるようなもの。
-#   潜る前から特異ダンジョンと分かっていれば選べるが、途中変更は蛇足。
-#   なので採掘には一切干渉させず、右手が空いているときだけ狙える賭けにする。
-#
-#   既存のステータスがそのまま別の意味を持つ:
-#     会心率      -> 当たり帯の広さ（低いとど真ん中でしか通らない）
-#     会心ダメージ -> 通ったときの倍率
-#     採掘速度    -> 印が遅くなる（狙いやすくなる）
-CRACK_KEY = pyxel.KEY_RETURN   # 左手はZを押しっぱなし、右手でこれを叩く
-CRACK_HP = 0.6                 # ボスのHPがこれを下回ると亀裂が走る
-CRACK_SPEED = 0.021            # 印の速さ（1フレームで動く割合）
-CRACK_SPEED_PER_LV = 0.075     # 採掘速度1につき遅くなる割合
-#   会心を捨てた人でも「ど真ん中なら通る」幅は残す。狭すぎると
-#   人間の反応では一度も通らず、深層に来た時点で詰みになる。
-CRACK_ZONE = 0.11              # 当たり帯の半幅の基本
-CRACK_ZONE_PER_LV = 0.008      # 会心率1につき広がる
-#   威力は「長押し何秒ぶんか」で置く。一撃の何倍、にするとビルドによって
-#   価値が桁で変わり、賭けとして成立しなくなる。
-#   ただしボス最大HPに対する上限をかぶせる。上限があると、火力が低い人ほど
-#   相対的に大きな助けになり、強い人は使わなくても倒せる形に落ち着く。
-CRACK_SECONDS = 4.0            # ど真ん中で長押し何秒ぶん削れるか
-CRACK_MAX_RATIO = 0.12         # ただしボス最大HPのこの割合が上限
-CRACK_CD_FLOOR = 0.5           # 会心ダメージ0でもこの割合は出る
-CRIT_MULT_MAX = 2.0 + 24 * 0.4  # 会心ダメージを深層まで振り切った値
-CRACK_HEAL = 0.02              # 外したときにボスが回復する割合（最大HP比）
-CRACK_COOL = 12                # 押した後の硬直
-
 # --- 掘った数の節目 -----------------------------------------------------------
 #   店に気づかず、ただ掘り続けるだけで遊ぶ人がいる。実際に木のピッケルのまま
 #   レベルアップだけで B1F を抜けた子がいた。そういう遊び方にも飴が届くように、
@@ -536,6 +506,12 @@ UPGRADES = [
      "base": 350, "rate": 1.5, "max": 6, "deep_max": 9},
     {"key": "luck", "name": "うんの良さ", "desc": "実入りが増え、なにかと運が向く",
      "base": 900, "rate": 1.34, "max": 16, "deep_max": 26},
+    # 深層でだけ売られる呪文。本編を遊ぶ人の目には触れない。
+    # 実測すると収入は1.3倍程度にしかならない（ボトルネックは鉱石の量ではなく硬さ）。
+    # これは効率を買う品ではなく、画面が鉱石で埋まる爽快さを買う品。
+    # だから値段も投資として見合う額ではなく、気軽に伸ばせる額に置く。
+    {"key": "vein", "name": "鉱床ニョキニョキ", "desc": "鉱石が一度にたくさん湧く",
+     "base": 80000, "rate": 1.15, "max": 0, "deep_max": 23, "deep": True},
 ]
 
 BASE_MINING_RATE = 6.0     # 押しっぱなしのときの毎秒の振り回数
@@ -1207,9 +1183,6 @@ class App:
         self.shop_cursor = 0
         self.shop_scroll = 0
         self.cheat_pos = 0
-        self.crack_pos = None      # 亀裂の印の位置 0.0〜1.0
-        self.crack_dir = 1
-        self.crack_cool = 0
         self.play_frames = 0
         self.clear_page = 0
         self.clear_frames = 0
@@ -1322,12 +1295,6 @@ class App:
         if self.phantom_cooldown > 0:
             self.phantom_cooldown -= 1
 
-        self.update_crack()
-        if (self.crack_pos is not None and self.crack_cool <= 0
-                and pyxel.btnp(CRACK_KEY)):
-            ph = self.phantom_on_field()
-            if ph is not None:
-                self.crack_attempt(ph)
         self.handle_mining()
         self.update_pests()
         self.update_cat()
@@ -1374,77 +1341,6 @@ class App:
                     break
         else:
             p.mine_charge = 0.0
-
-    # --- 深層のボス戦：亀裂 -------------------------------------------------
-    def phantom_on_field(self):
-        return next((o for o in self.ores if o.phantom), None)
-
-    @property
-    def crack_speed(self):
-        """採掘速度を上げるほど印が遅くなる＝狙いやすくなる。"""
-        return CRACK_SPEED / (1.0 + self.player.upgrades["speed"] * CRACK_SPEED_PER_LV)
-
-    @property
-    def crack_zone(self):
-        """会心率を上げるほど当たり帯が広がる。低いとど真ん中しか通らない。"""
-        return CRACK_ZONE + self.player.upgrades["crit"] * CRACK_ZONE_PER_LV
-
-    def update_crack(self):
-        ph = self.phantom_on_field()
-        if ph is None or not self.in_deep or ph.hp_ratio > CRACK_HP:
-            self.crack_pos = None
-            return
-        if self.crack_pos is None:
-            self.crack_pos = random.uniform(0.15, 0.85)
-            self.crack_dir = random.choice((-1, 1))
-            self.crack_cool = 0
-            self.set_message("亀裂が走った！  狙えるなら [ENTER]", 10)
-            pyxel.play(1, 5)
-        if self.crack_cool > 0:
-            self.crack_cool -= 1
-            return
-        self.crack_pos += self.crack_dir * self.crack_speed
-        if self.crack_pos <= 0.0:
-            self.crack_pos, self.crack_dir = 0.0, 1
-        elif self.crack_pos >= 1.0:
-            self.crack_pos, self.crack_dir = 1.0, -1
-
-    def crack_attempt(self, ph):
-        """亀裂に合わせて押した。中央に近いほど大きく削れ、外すとボスが回復する。
-        使わなくても倒せる。使えば速い。外すと遅くなる。それだけの賭け。"""
-        p = self.player
-        self.crack_cool = CRACK_COOL
-        d = abs(self.crack_pos - 0.5) * 2.0        # 0=中央 1=端
-        z = self.crack_zone
-        p.last_hit_frame = pyxel.frame_count
-        p.swing = 4
-        p.face = 1 if ph.x >= p.x else -1
-
-        if d <= z:
-            acc = 1.0 - d / z                       # 1.0=ど真ん中
-            cd = CRACK_CD_FLOOR + (1.0 - CRACK_CD_FLOOR) * min(1.0, p.crit_mult / CRIT_MULT_MAX)
-            base = min(p.average_dps * CRACK_SECONDS, ph.max_hp * CRACK_MAX_RATIO)
-            dmg = int(base * cd * (0.35 + 0.65 * acc))
-            ph.hp -= dmg
-            ph.hit_shake = 5
-            p.combo += 1
-            pyxel.play(0, 1)
-            self.add_shake(SHAKE_PHANTOM if acc > 0.7 else SHAKE_HIT)
-            word = "会心の亀裂" if acc > 0.7 else "亀裂"
-            self.popups.append(Popup(ph.x, ph.y - ph.r - 16, f"{word} {fmt(dmg)}", 10,
-                                     crit=True, exact=True))
-            for _ in range(24 if acc > 0.7 else 12):
-                self.particles.append(Particle(ph.x, ph.y, 10, speed=3.4, life=26, size=2))
-            if ph.hp <= 0:
-                self.break_ore(ph)
-        else:
-            heal = int(ph.max_hp * CRACK_HEAL)
-            ph.hp = min(ph.max_hp, ph.hp + heal)
-            pyxel.play(1, 6)
-            self.popups.append(
-                Popup(ph.x, ph.y - ph.r - 16, f"亀裂が塞がった +{fmt(heal)}", 12, exact=True))
-            for _ in range(10):
-                self.particles.append(Particle(ph.x, ph.y, 12, speed=1.8, life=20))
 
     def check_cheat(self):
         """上 上 下 下 右 左 右 左 B A で所持金が増える。
@@ -1632,6 +1528,14 @@ class App:
         return min(PHANTOM_SPAWN_CHANCE,
                    PHANTOM_RESPAWN_CHANCE + lv * PHANTOM_RESPAWN_LUCK)
 
+    @property
+    def ore_cap(self):
+        return MAX_ORE_ON_SCREEN + self.player.upgrades["vein"]
+
+    @property
+    def ore_per_spawn(self):
+        return 1 + self.player.upgrades["vein"] // VEIN_PER_SPAWN
+
     def phantom_reward_rate(self):
         """2体目以降は取り分が減り、狩るほどさらに減る。運がその全体を押し上げる。"""
         n = self.phantom_kills.get(self.floor_index, 0)
@@ -1657,8 +1561,13 @@ class App:
                 self.set_message(f"{boss.name}が現れた…！", 8)
                 return
 
-        if len([o for o in self.ores if not o.phantom]) >= MAX_ORE_ON_SCREEN:
-            return
+        cap = self.ore_cap
+        for _ in range(self.ore_per_spawn):
+            if len([o for o in self.ores if not o.phantom]) >= cap:
+                return
+            self.spawn_one_ore(fl)
+
+    def spawn_one_ore(self, fl):
         kind = self.weighted_kind(self.spawn_table(fl))
         pos = self.find_spawn_pos(ORE_TYPES[kind]["r"])
         if pos:
@@ -1981,6 +1890,8 @@ class App:
                               "sub": f"攻撃力 x{pk['mult']}", "price": pk["price"],
                               "col": pk["col"]})
         for u in UPGRADES:
+            if u.get("deep") and not self.in_deep:
+                continue
             lv = p.upgrades[u["key"]]
             umax = self.upgrade_max(u)
             if lv >= umax:
@@ -2046,7 +1957,10 @@ class App:
                 self.set_message(f"{PICKAXES[item['idx']]['name']} を手に入れた", 11)
         elif item["type"] == "upgrade":
             p.upgrades[item["key"]] += 1
-            self.set_message(f"{item['label'].split()[0]} を強化した！", 11)
+            if item["key"] == "vein":
+                self.set_message(f"鉱床がざわめいた…！  同時に {self.ore_cap} 個まで湧く", 11)
+            else:
+                self.set_message(f"{item['label'].split()[0]} を強化した！", 11)
         elif item["type"] == "bell":
             self.cat_bell = True
             self.set_message("ネコが鈴をつけた！  身のこなしが軽くなった", 11)
@@ -2292,29 +2206,9 @@ class App:
         pyxel.rect(bx, ROW_PH1 + 4, max(0, int(bw * ph.hp_ratio)), 5, 8)
         text_r(SCREEN_W - 4, ROW_PH1, f"{ph.hp_ratio * 100:.1f}%", 7)
 
-        if self.crack_pos is not None:
-            self.draw_crack()
-        elif ph.remain_frames < PHANTOM_WARN_TIME and (pyxel.frame_count // 5) % 2 == 0:
-            # 残り時間は数字で出さない。消える直前だけ警告し、あとは勘に任せる。
+        # 残り時間は数字で出さない。消える直前だけ警告し、あとは勘に任せる。
+        if ph.remain_frames < PHANTOM_WARN_TIME and (pyxel.frame_count // 5) % 2 == 0:
             text_center(SCREEN_W // 2, ROW_PH2, "気配が薄れてきた…！", 8)
-
-    def draw_crack(self):
-        """亀裂のゲージ。当たり帯の広さは会心率、印の速さは採掘速度で変わる。
-        数値は出さない。広いか狭いか、速いか遅いかは見れば分かる。"""
-        bx, by, bw = 20, ROW_PH2 + 1, SCREEN_W - 40
-        pyxel.rect(bx, by, bw, 7, 1)
-        pyxel.rectb(bx - 1, by - 1, bw + 2, 9, 13)
-
-        z = self.crack_zone
-        zw = max(2, int(bw * z))
-        cx = bx + bw // 2
-        blink = self.crack_cool > 0 and (self.crack_cool // 3) % 2 == 0
-        pyxel.rect(cx - zw, by, zw * 2, 7, 8 if not blink else 10)
-        pyxel.rect(cx - 1, by, 2, 7, 10)
-
-        mx = bx + int(bw * self.crack_pos)
-        pyxel.rect(mx - 1, by - 2, 3, 11, 7)
-        text_r(bx - 3, by - 2, "[ENTER]", 10 if (pyxel.frame_count // 12) % 2 else 13)
 
     # --- ショップ -----------------------------------------------------------
     def draw_shop(self):
