@@ -1620,6 +1620,12 @@ class App:
         self.ores = []
         self.pests = []
         self.phantom_cooldown = PHANTOM_COOLDOWN // 2
+        if self.floor_cleared:
+            # 力尽きて1階層戻された後、また上ってきた場合。この階のボスは
+            # 既に倒し済みなので、on_player_down と同じくハシゴは出したままにする。
+            # ここで出さないと、まだ手つかずの階と違って「撃破済みなのに
+            # ボスの低確率な再出現を待つしかない」という詰みに近い状態になる。
+            self.spawn_ladder(SCREEN_W / 2, (FIELD_TOP + FIELD_BOTTOM) / 2)
         # 降りた直後は必ず一息つける。降りた瞬間に殴られるのは理不尽なので。
         self.pest_timer = self.pest_interval(FLOORS[self.floor_index]["pest"])
         self.player.hp = self.player.max_hp
