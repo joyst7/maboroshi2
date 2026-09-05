@@ -225,6 +225,10 @@ CAT_POUNCE_TIME = 10
 CAT_FIND_INTERVAL = 20 * FPS
 CAT_FIND_CHANCE = 0.35     # 落とし物を見つける確率。運1につき +0.03
 CAT_FIND_LUCK = 0.03
+#   深層限定。群れに囲まれるとネコのクールタイム5秒では捌ききれなくなるので、
+#   その答えをネコ自身に持たせる。深層の鞭に対する、深層の飴。
+CAT_BELL_PRICE = 1600000
+CAT_BELL_COOL = 0.45       # クールタイムをこの割合まで縮める
 CAT_STRIDE = 9.0           # 何px進むごとに足を踏みかえるか
 
 ST_TITLE = 0
@@ -447,7 +451,7 @@ FLOORS = [
         # 幻片は運を積むほど見つかる。運0では滅多に出ない。
         "spawn_luck": {"shard": 0.55},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
-        "ph_hp": 160000000, "ph_gold": 0, "ph_exp": 0, "potion": 900000,
+        "ph_hp": 160000000, "ph_gold": 2600000, "ph_exp": 60000, "potion": 900000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
         "cat_find": 50000,
     },
@@ -478,13 +482,26 @@ PICKAXES = [
     {"name": "深淵のピッケル", "mult": 640, "price": 3800000, "col": 3, "deep": True},
 ]
 
+#   max は本編での上限、deep_max は深層で解放される上限。
+#   腕力以外は合計85万でカンストしてしまい、本編クリアまでに全部買い終わる。
+#   そのままだと深層の買い物が腕力とピッケルだけになって単調なので、
+#   深層に着いて初めて上が開く。値段は指数カーブなので、解放分がそのまま
+#   「あと少しで届く」の対象になる。
 UPGRADES = [
-    {"key": "power", "name": "腕力", "desc": "基礎の攻撃力 +4", "base": 150, "rate": 1.17, "max": 60},
-    {"key": "speed", "name": "採掘速度", "desc": "自動で振る速さ +2回/秒", "base": 800, "rate": 1.9, "max": 6},
-    {"key": "crit", "name": "会心率", "desc": "会心の一撃が出やすくなる", "base": 600, "rate": 1.32, "max": 18},
-    {"key": "critdmg", "name": "会心ダメージ", "desc": "会心の一撃が強くなる", "base": 1200, "rate": 1.36, "max": 14},
-    {"key": "move", "name": "あしの速さ", "desc": "歩きが楽になる", "base": 350, "rate": 1.5, "max": 6},
-    {"key": "luck", "name": "うんの良さ", "desc": "実入りが増え、なにかと運が向く", "base": 900, "rate": 1.34, "max": 16},
+    # 腕力だけは解放しない。伸び率1.17がLv60を超えると1レベル1億を超え、
+    # 「貯める気力が起きない額」になってしまう。Lv60が実質の天井。
+    {"key": "power", "name": "腕力", "desc": "基礎の攻撃力 +4",
+     "base": 150, "rate": 1.17, "max": 60},
+    {"key": "speed", "name": "採掘速度", "desc": "自動で振る速さ +2回/秒",
+     "base": 800, "rate": 1.9, "max": 6, "deep_max": 9},
+    {"key": "crit", "name": "会心率", "desc": "会心の一撃が出やすくなる",
+     "base": 600, "rate": 1.32, "max": 18, "deep_max": 28},
+    {"key": "critdmg", "name": "会心ダメージ", "desc": "会心の一撃が強くなる",
+     "base": 1200, "rate": 1.36, "max": 14, "deep_max": 24},
+    {"key": "move", "name": "あしの速さ", "desc": "歩きが楽になる",
+     "base": 350, "rate": 1.5, "max": 6, "deep_max": 9},
+    {"key": "luck", "name": "うんの良さ", "desc": "実入りが増え、なにかと運が向く",
+     "base": 900, "rate": 1.34, "max": 16, "deep_max": 26},
 ]
 
 BASE_MINING_RATE = 6.0     # 押しっぱなしのときの毎秒の振り回数
@@ -898,10 +915,13 @@ class Cat:
     def can_guard(self):
         return self.guard_cool <= 0 and self.pounce <= 0
 
-    def leap(self, tx, ty):
+    def guard_cooldown(self, belled):
+        return int(CAT_GUARD_COOL * (CAT_BELL_COOL if belled else 1.0))
+
+    def leap(self, tx, ty, belled=False):
         self.pounce = CAT_POUNCE_TIME
         self.tx, self.ty = tx, ty
-        self.guard_cool = CAT_GUARD_COOL
+        self.guard_cool = self.guard_cooldown(belled)
         if abs(tx - self.x) > 1.0:
             self.face = 1 if tx > self.x else -1
 
@@ -1139,6 +1159,7 @@ class App:
         self.pests = []
         self.pest_timer = 0
         self.cat = None
+        self.cat_bell = False
         self.particles = []
         self.popups = []
         self.ladder = None
@@ -1391,7 +1412,7 @@ class App:
                 if not q.can_hit:
                     continue
                 if math.hypot(q.x - cat.x, q.y - cat.y) < CAT_GUARD_R:
-                    cat.leap(q.x, q.y)
+                    cat.leap(q.x, q.y, self.cat_bell)
                     q.driven_off(cat.x, cat.y)
                     for _ in range(6):
                         self.particles.append(Particle(q.x, q.y, 10, speed=2.2, life=14))
@@ -1665,6 +1686,11 @@ class App:
         p = self.player
 
         if self.floor_index in (NORMAL_LAST, len(FLOORS) - 1):
+            # 深層へ潜る人のために、ここでも報酬は渡しておく。
+            # 次の階で欲しいピッケルの6〜9割をボスが賄い、残りを掘って埋める、
+            # という本編と同じ「あと一歩」の形を深層でも保つ。
+            p.gold += int(ore.gold * p.gold_mult)
+            p.gain_exp(ore.exp)
             pyxel.stop()
             pyxel.play(1, 7)
             if self.floor_index == NORMAL_LAST:
@@ -1815,6 +1841,14 @@ class App:
     def potion_price(self):
         return FLOORS[self.floor_index]["potion"]
 
+    @property
+    def in_deep(self):
+        return self.floor_index > NORMAL_LAST
+
+    def upgrade_max(self, u):
+        """深層では上限が解放される。"""
+        return u.get("deep_max", u["max"]) if self.in_deep else u["max"]
+
     def shop_items(self):
         """ピッケルは全種を並べる。石で妥協するか鉄まで貯めるかを自分で選べる。"""
         p = self.player
@@ -1834,17 +1868,22 @@ class App:
                               "col": pk["col"]})
         for u in UPGRADES:
             lv = p.upgrades[u["key"]]
-            if lv >= u["max"]:
+            umax = self.upgrade_max(u)
+            if lv >= umax:
                 items.append({"type": "upgrade", "key": u["key"], "label": f"{u['name']}（最大）",
                               "sub": u["desc"], "price": None, "col": 6})
             else:
                 items.append({"type": "upgrade", "key": u["key"],
-                              "label": f"{u['name']}  Lv.{lv}/{u['max']}",
+                              "label": f"{u['name']}  Lv.{lv}/{umax}",
                               "sub": u["desc"], "price": int(u["base"] * (u["rate"] ** lv)),
                               "col": 6})
         if self.cat is None:
             items.append({"type": "cat", "label": "ほりほりネコ",
                           "sub": "ついてくる。邪魔者を追い払う", "price": CAT_PRICE, "col": 10})
+        elif self.in_deep and not self.cat_bell:
+            items.append({"type": "bell", "label": "ネコの鈴",
+                          "sub": "ネコが続けざまに飛びかかれるようになる",
+                          "price": CAT_BELL_PRICE, "col": 10})
         left = POTION_PER_FLOOR - p.potions_bought
         items.append({"type": "potion",
                       "label": f"怪しい薬（所持 {p.potions}）",
@@ -1894,6 +1933,9 @@ class App:
         elif item["type"] == "upgrade":
             p.upgrades[item["key"]] += 1
             self.set_message(f"{item['label'].split()[0]} を強化した！", 11)
+        elif item["type"] == "bell":
+            self.cat_bell = True
+            self.set_message("ネコが鈴をつけた！  身のこなしが軽くなった", 11)
         elif item["type"] == "cat":
             self.cat = Cat(p.x - p.face * 15, p.y + 4)
             self.set_message("ほりほりネコが ついてきた！", 11)
