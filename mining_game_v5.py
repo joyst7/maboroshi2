@@ -232,16 +232,23 @@ ST_PLAY = 1
 ST_SHOP = 2
 ST_CLEAR = 3
 
+# --- 本編の終わり -------------------------------------------------------------
+#   B5 をクリアした時点が、大多数のプレイヤーにとっての本編の終わり。
+#   FLOORS の末尾＝クリア、にしてしまうと深層を足した瞬間に B5 が
+#   ただの通過点になるので、本編の終わりを位置ではなく番号で持つ。
+NORMAL_LAST = 4                # B5F
+
 # --- クリア評価 ---------------------------------------------------------------
-#   (この秒数未満なら, ランク記号, 称号, 真エンディングに到達するか)
+#   (この秒数未満なら, ランク記号, 称号, 深層へ潜れるか)
+#   深層は「おすすめしない」枠。B5 で終える人が本編を遊び切ったことに変わりはない。
 RANKS = [
     (8 * 60, "S", "伝説の採掘士", True),
-    (12 * 60, "A", "熟練の採掘士", False),
+    (12 * 60, "A", "熟練の採掘士", True),
     (18 * 60, "B", "一人前の採掘士", False),
     (26 * 60, "C", "見習い採掘士", False),
     (10 ** 9, "D", "駆け出しの採掘士", False),
 ]
-TRUE_END_SEC = RANKS[0][0]
+DEEP_GATE_SEC = RANKS[1][0]    # ここを切ると深層へ行ける（Aランク）
 
 
 # ==============================================================================
@@ -297,6 +304,7 @@ SPR_ORE_RECOLOR = {
     # 種類:      (下敷きにする鉱石, 元の色 -> 差し替える色)
     "bismuth": ("gem", {11: 12, 3: 5}),
     "shard": ("gem", {11: 14, 3: 2}),
+    "abyss": ("gem", {11: 3, 3: 1}),
 }
 
 
@@ -394,6 +402,9 @@ ORE_TYPES = {
     # 幻の鉱床のかけら。運を積むほど見つかる。最深部だけ。
     "shard": {"name": "幻片", "hp": 6000000, "exp": 8000, "gold": 28000,
               "col": 14, "dark": 2, "r": 11},
+    # B6以降。本編クリア後の装備を前提にした硬さと実入りにする。
+    "abyss": {"name": "深層鉱", "hp": 40000000, "exp": 26000, "gold": 25000,
+              "col": 3, "dark": 1, "r": 12},
 }
 PHANTOM_R = 12
 
@@ -440,6 +451,17 @@ FLOORS = [
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
         "cat_find": 50000,
     },
+    # ------------------------------------------------------------------ 深層
+    {
+        "name": "B6F 深層", "bg": 1, "rock": 1, "pal": {4: 1, 13: 5, 9: 12},
+        "spawn": {"gold": 10, "gem": 22, "bismuth": 26, "shard": 24, "abyss": 18},
+        "spawn_luck": {"shard": 0.4, "abyss": 0.5},
+        "boss": "深層の主", "witch": "……まだ来るのかい。もう驚かないよ。",
+        "ph_hp": 400000000, "ph_gold": 2500000, "ph_exp": 120000, "potion": 1200000,
+        # 当てても去らずに狙い直す。ネコのクールタイム5秒では捌ききれなくなる。
+        "pest": {"every": 11, "speed": 2.10, "warn": 16, "max": 2, "linger": True},
+        "cat_find": 130000,
+    },
 ]
 
 # ピッケルは「順番に買う」必要がない。石で妥協するか鉄まで我慢するかを選べる。
@@ -452,6 +474,8 @@ PICKAXES = [
     # 値段は「ボス初回撃破の合計(1,838,500) + 深層での採掘」で届く額に置く。
     # 低層ループは裏技であって基本ルートではないので、それを当てにした値付けはしない。
     {"name": "幻のピッケル", "mult": 220, "price": 1800000, "col": 8},
+    # ここから深層。B6以降でしか売られないので、本編だけ遊ぶ人の目には触れない。
+    {"name": "深淵のピッケル", "mult": 640, "price": 3800000, "col": 3, "deep": True},
 ]
 
 UPGRADES = [
@@ -1132,6 +1156,8 @@ class App:
         self.clear_page = 0
         self.clear_frames = 0
         self.rank = None
+        self.clear_time = 0        # 本編クリア時のタイム。深層に潜っても動かさない
+        self.deep_end = False      # 深層の最深部を砕いたか
         self.build_background()
 
     def build_background(self):
@@ -1638,10 +1664,14 @@ class App:
     def on_phantom_break(self, ore):
         p = self.player
 
-        if self.floor_index == len(FLOORS) - 1:
+        if self.floor_index in (NORMAL_LAST, len(FLOORS) - 1):
             pyxel.stop()
             pyxel.play(1, 7)
-            self.rank = self.judge_rank()
+            if self.floor_index == NORMAL_LAST:
+                # 本編クリア。ここでランクとタイムを確定させ、以後は動かさない。
+                self.rank = self.judge_rank()
+                self.clear_time = self.play_frames
+            self.deep_end = self.floor_index != NORMAL_LAST
             self.clear_page = 0
             self.clear_frames = 0
             self.state = ST_CLEAR
@@ -1792,6 +1822,9 @@ class App:
         for i, pk in enumerate(PICKAXES):
             if i == 0:
                 continue
+            # 深層の品は、深層に来るまで並べない。本編だけ遊ぶ人の目には触れない。
+            if pk.get("deep") and self.floor_index <= NORMAL_LAST:
+                continue
             if i in p.owned:
                 items.append({"type": "pickaxe", "idx": i, "label": pk["name"],
                               "sub": "しょゆう済み", "price": None, "col": pk["col"]})
@@ -1872,15 +1905,46 @@ class App:
 
     def update_clear(self):
         self.clear_frames += 1
-        mark, title, is_true = self.rank
-        if is_true and self.clear_page == 0:
-            if pyxel.btnp(pyxel.KEY_Z) or pyxel.btnp(pyxel.KEY_RETURN):
+        mark, title, can_deep = self.rank
+        push = pyxel.btnp(pyxel.KEY_Z) or pyxel.btnp(pyxel.KEY_RETURN)
+
+        if not self.deep_end and can_deep and self.floor_index == NORMAL_LAST:
+            # Aランク以上なら、結果 -> 坑道の続きの話 -> 実際に潜る、と進める
+            if self.clear_page == 0 and push:
                 self.clear_page = 1
+                return
+            if self.clear_page == 1 and push:
+                self.descend_to_deep()
                 return
         if pyxel.btnp(pyxel.KEY_R):
             self.reset()
             self.state = ST_PLAY
             self.start_bgm()
+
+    def descend_to_deep(self):
+        """本編クリア後、さらに下へ潜る。ランクとタイムは確定済みなので触らない。"""
+        self.floor_index = NORMAL_LAST + 1
+        self.state = ST_PLAY
+        self.ladder = None
+        self.ores = []
+        self.pests = []
+        self.popups = []
+        self.phantom_cooldown = PHANTOM_COOLDOWN
+        self.pest_timer = self.pest_interval(FLOORS[self.floor_index]["pest"])
+        p = self.player
+        p.hp = p.max_hp
+        p.potions_bought = 0
+        p.kbx = p.kby = 0.0
+        p.x, p.y = SCREEN_W / 2, (FIELD_TOP + FIELD_BOTTOM) / 2
+        if self.cat is not None:
+            self.cat.x, self.cat.y = p.x - 15, p.y + 4
+            self.cat.pounce = 0
+        self.build_background()
+        self.start_bgm()
+        pyxel.play(1, 7)
+        self.set_message(FLOORS[self.floor_index]["name"] + " へ降りた", 11)
+        for _ in range(24):
+            self.particles.append(Particle(p.x, p.y, 13, speed=2.4, life=26))
 
     def set_message(self, s, col=7):
         self.message = s
@@ -1995,7 +2059,7 @@ class App:
         gold_s = f"お金 {fmt(p.gold)}"
         text_r(SCREEN_W - 3, 2, gold_s, 10)
 
-        if self.floor_index == len(FLOORS) - 1:
+        if self.floor_index >= NORMAL_LAST:
             status, scol = "最深部", 8
         elif self.ladder is not None:
             status, scol = "ハシゴ発見", 11
@@ -2186,7 +2250,7 @@ class App:
                        10 if i % 3 else 11)
 
         p = self.player
-        mark, title, is_true = self.rank
+        mark, title, can_deep = self.rank
         col = 10 if (pyxel.frame_count // 8) % 2 == 0 else 7
         big_h = (FONT_H + 3) * 2
 
@@ -2207,7 +2271,7 @@ class App:
             text_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
 
         rows = [
-            ("クリアタイム", mmss(self.play_frames)),
+            ("クリアタイム", mmss(self.clear_time or self.play_frames)),
             ("最終レベル", f"Lv.{p.level}"),
             ("最終ピッケル", PICKAXES[p.pickaxe]["name"]),
             ("掘った鉱石", f"{p.total_mined} 個"),
@@ -2220,11 +2284,11 @@ class App:
             text(140, y, v, 7)
 
         if t >= cue["hint"]:
-            if is_true:
+            if can_deep:
                 if (pyxel.frame_count // 15) % 2 == 0:
                     text_center(SCREEN_W // 2, 202, "[Z] ……坑道の底から、音がする", 11)
             else:
-                text_center(SCREEN_W // 2, 196, f"{TRUE_END_SEC // 60}分以内に砕いたとき、", 13)
+                text_center(SCREEN_W // 2, 196, f"{DEEP_GATE_SEC // 60}分以内に砕いたとき、", 13)
                 text_center(SCREEN_W // 2, 210, "この坑道の本当の姿が見えるという。", 13)
 
         if t >= cue["prompt"]:
@@ -2258,7 +2322,10 @@ class App:
                 text(22, 50 + i * 15, s, 10 if i == len(lines) - 1 else 7)
 
         if (pyxel.frame_count // 15) % 2 == 0:
-            text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 11)
+            if self.deep_end:
+                text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 11)
+            else:
+                text_center(SCREEN_W // 2, 232, "[Z] さらに潜る    [R] もう一度掘る", 11)
 
 
 if __name__ == "__main__":
