@@ -506,30 +506,28 @@ class Popup:
     数字が溢れる勢いはそのままに、一発いくらかは読み取れるようにする。
     """
 
-    def __init__(self, x, y, s, col, crit=False, spread=0.0):
-        self.x = x + random.uniform(-spread, spread) if spread else x + random.uniform(-4, 4)
+    def __init__(self, x, y, s, col, crit=False, exact=False):
+        # exact=True のときは呼び出し側が位置を決めきっている
+        self.x = x if exact else x + random.uniform(-4, 4)
         self.y = y
         self.s = s
         self.col = col
         self.life = 26 if crit else 18
-        if crit:
-            self.vx, self.vy = 0.0, -1.4
-        else:
-            # 上へ昇りながら左右へ逃がす。同時に出た数字どうしが離れていく。
-            self.vx = random.uniform(-1.8, 1.8)
-            self.vy = -random.uniform(0.6, 1.6)
+        # 動きは真上だけ。左右に流すと鉱石から離れすぎて、どの鉱石を
+        # 殴った数字なのか分からなくなる。散らすのは出現位置だけにする。
+        # 上昇の速さをばらけさせて数字どうしを引き離す。移動が縦だけなので
+        # ここが唯一の分離手段だが、伸ばしすぎると鉱石から浮くので上限は抑える。
+        self.vy = -random.uniform(0.5, 2.0) if exact else (-1.4 if crit else -1.0)
+        self.decay = 0.90
 
     def update(self):
-        self.x += self.vx
         self.y += self.vy
-        self.vx *= 0.98
-        self.vy *= 0.9
+        self.vy *= self.decay
         self.life -= 1
         return self.life > 0
 
     def draw(self):
-        col = self.col if self.life > 5 else 5
-        text_center_shadow(self.x, self.y, self.s, col)
+        text_center_shadow(self.x, self.y, self.s, self.col)
 
 
 # ==============================================================================
@@ -1159,7 +1157,9 @@ class App:
     #   効果音を ch0/ch1、BGMを ch2/ch3 に分けないと、採掘のたびにBGMが止まる。
     def setup_sounds(self):
         s = pyxel.sounds
-        s[0].set("a3", "p", "2", "f", 5)                        # 採掘ヒット
+        # 採掘ヒットは一番よく鳴る音。小さすぎると、他の効果音が増えたときに
+        # 埋もれて「掘っている手応え」が消える。他とつり合う音量にする。
+        s[0].set("a3", "p", "4", "f", 5)                        # 採掘ヒット
         s[1].set("c4f4", "s", "43", "f", 5)                     # 会心の一撃
         s[2].set("f2c2", "n", "65", "f", 8)                     # 鉱石を壊した
         s[3].set("c3e3g3c4", "t", "6666", "n", 7)               # レベルアップ
@@ -1565,19 +1565,14 @@ class App:
         mode = DMG_MODES[DMG_MODE][1]
         if crit:
             pyxel.play(0, 1)
-            if mode == "all":
-                self.popups.append(
-                    Popup(ore.x, ore.y - ore.r - 14, f"会心 {fmt(dmg)}", 10, crit=True))
-            elif mode == "crit":
-                self.popups.append(
-                    Popup(ore.x, ore.y - ore.r - 14, f"会心 {fmt(dmg)}", 10, crit=True))
+            if mode in ("all", "crit"):
+                px, py = self.damage_pos(ore)
+                self.popups.append(Popup(px, py, f"会心 {fmt(dmg)}", 10, crit=True, exact=True))
         else:
             pyxel.play(0, 0)
             if mode == "all":
-                # 鉱石の上あたりに散らして出す。真上に固定すると積み重なって読めない。
-                self.popups.append(Popup(
-                    ore.x, ore.y - ore.r - random.uniform(2, 28), fmt(dmg), 7,
-                    spread=ore.r + 18))
+                px, py = self.damage_pos(ore)
+                self.popups.append(Popup(px, py, fmt(dmg), 7, exact=True))
         if mode == "accum":
             ore.acc_dmg += dmg
             ore.acc_life = DMG_ACC_LIFE
@@ -1587,6 +1582,15 @@ class App:
             self.judge_phantom(ore)
         if ore.hp <= 0:
             self.break_ore(ore)
+
+    @staticmethod
+    def damage_pos(ore):
+        """ダメージ数字を出す位置。鉱石の上半分の輪郭に沿って散らす。
+        真上に固定すると積み重なって読めず、遠くに散らすと鉱石から浮く。
+        左上〜真上〜右上の弧に、輪郭のすぐ外側という置き方で両方を避ける。"""
+        a = random.uniform(math.pi * 1.12, math.pi * 1.88)
+        d = ore.r + random.uniform(3, 11)
+        return ore.x + math.cos(a) * d, ore.y + math.sin(a) * d
 
     def judge_phantom(self, ore):
         """勝てるかどうかは教えない。ゲージが動くかどうかという、見れば分かる情報だけ返す。"""
