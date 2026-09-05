@@ -63,6 +63,22 @@ OUTLINE_COL = 1                # 図形描画のときの輪郭色
 #   コミットされて計測が汚れる（実際に2度やった）。最初から仕込んでおけば
 #   コードを触らずに試せるので、事故そのものが起きなくなる。
 #   昔のゲームの裏技コマンドと同じノリなので、見つけた人はそのまま使ってよい。
+# --- ダメージ表示 -------------------------------------------------------------
+#   採掘速度が上がると毎秒18回まで振れる。ポップアップの寿命は18フレームなので
+#   常時11個が同じ場所に重なり、1発いくらなのかまったく読めなくなる。
+#   さらにHPバーとダメージ数字が1px差で重なっていて、バーも見えていなかった。
+#   ただし「読めないほど数字が溢れる」爽快感も確かにあるので、正解は一つではない。
+#   実機で D キーを押して切り替え、良かったものを既定にする。
+TUNING_DMG = True
+DMG_MODES = (
+    ("全部出す", "all"),        # 従来どおり1発ごと。読めないが勢いはある
+    ("まとめて出す", "accum"),   # 鉱石ごとに1つ、殴った分を足していく
+    ("会心だけ", "crit"),        # 通常は数字なし。会心だけ跳ねる
+    ("出さない", "none"),        # 数字なし。HPバーと粒子だけ
+)
+DMG_MODE = 1
+DMG_ACC_LIFE = 24              # まとめて表示のときの表示継続フレーム
+
 CHEAT_CODE = "UUDDRLRLBA"
 CHEAT_GOLD = 3000000
 CHEAT_KEYS = {
@@ -525,6 +541,9 @@ class Ore:
         self.age = 0
         self.hit_shake = 0
         self.hit_once = False
+        self.acc_dmg = 0          # まとめて表示のときの累計
+        self.acc_life = 0
+        self.acc_crit = False
 
         rng = random.Random(random.getrandbits(32))
         self.speckles = [(math.cos(a) * d, math.sin(a) * d) for a, d in
@@ -547,6 +566,11 @@ class Ore:
         self.age += 1
         if self.hit_shake > 0:
             self.hit_shake -= 1
+        if self.acc_life > 0:
+            self.acc_life -= 1
+            if self.acc_life == 0:
+                self.acc_dmg = 0
+                self.acc_crit = False
 
     def draw_shape(self, x, y):
         """スプライトが無いときの図形描画。新しい鉱石はまず これで出る。"""
@@ -606,6 +630,12 @@ class Ore:
             bw, bx, by = self.r * 2, x - self.r, y - self.r - 5
             pyxel.rect(bx, by, bw, 2, 1)
             pyxel.rect(bx, by, max(0, int(bw * self.hp_ratio)), 2, 11)
+
+        # まとめて表示。鉱石ごとに1つだけ、殴った分を足して出す。
+        # HPバーより上に置くので、バーが数字に隠れない。
+        if self.acc_life > 0 and self.acc_dmg > 0:
+            col = 10 if self.acc_crit else 7
+            text_center_shadow(x, y - self.r - 16, fmt(self.acc_dmg), col)
 
 
 # ==============================================================================
@@ -1185,6 +1215,12 @@ class App:
         self.update_cat()
         self.check_cheat()
 
+        if TUNING_DMG and pyxel.btnp(pyxel.KEY_D):
+            globals()["DMG_MODE"] = (DMG_MODE + 1) % len(DMG_MODES)
+            for o in self.ores:
+                o.acc_dmg, o.acc_life = 0, 0
+            self.popups = []
+            self.set_message(f"ダメージ表示: {DMG_MODES[DMG_MODE][0]}", 14)
         if TUNING:
             for i in range(len(PEST_PRESETS)):
                 if pyxel.btnp(pyxel.KEY_1 + i):
@@ -1498,12 +1534,23 @@ class App:
         for _ in range(6 if crit else 3):
             self.particles.append(Particle(hx, hy, 10 if crit else ore.col, speed=2.2, life=12))
 
+        mode = DMG_MODES[DMG_MODE][1]
         if crit:
             pyxel.play(0, 1)
-            self.popups.append(Popup(ore.x, ore.y - ore.r - 4, f"会心 {fmt(dmg)}", 10, crit=True))
+            if mode == "all":
+                self.popups.append(
+                    Popup(ore.x, ore.y - ore.r - 14, f"会心 {fmt(dmg)}", 10, crit=True))
+            elif mode == "crit":
+                self.popups.append(
+                    Popup(ore.x, ore.y - ore.r - 14, f"会心 {fmt(dmg)}", 10, crit=True))
         else:
             pyxel.play(0, 0)
-            self.popups.append(Popup(ore.x, ore.y - ore.r - 4, fmt(dmg), 7))
+            if mode == "all":
+                self.popups.append(Popup(ore.x, ore.y - ore.r - 14, fmt(dmg), 7))
+        if mode == "accum":
+            ore.acc_dmg += dmg
+            ore.acc_life = DMG_ACC_LIFE
+            ore.acc_crit = ore.acc_crit or crit
 
         if ore.phantom and first_hit:
             self.judge_phantom(ore)
@@ -1956,6 +2003,9 @@ class App:
         if TUNING:
             text_r(SCREEN_W - 4 - p.max_hp * 7 - 6, ROW_HINT,
                    f"[1-5]コウモリ:{PEST_PRESETS[PEST_LEVEL][0]}", 14)
+        elif TUNING_DMG:
+            text_r(SCREEN_W - 4 - p.max_hp * 7 - 6, ROW_HINT,
+                   f"[D]ダメージ:{DMG_MODES[DMG_MODE][0]}", 14)
 
         # 体力。階層を降りるたび全快するので、ここが尽きるのは「同じ階で3回やられた」とき。
         for i in range(p.max_hp):
