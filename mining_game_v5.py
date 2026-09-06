@@ -385,8 +385,11 @@ def text_big(cx, y, s, col, scale=3):
 
 def fmt(n):
     n = int(n)
-    # 深層は億の桁に届く。1000万を超えたら小数を落として万でまとめ、
-    # 1億以上は億で丸める。数字が長いとテロップに収まらないため。
+    # 深層の終盤は兆の桁にも届く。長い数字はテロップに収まらないので桁ごとに丸める。
+    if n >= 1000000000000:
+        return f"{n / 1000000000000:.2f}兆"
+    if n >= 10000000000:
+        return f"{n // 100000000:,}億"
     if n >= 100000000:
         return f"{n / 100000000:.1f}億"
     if n >= 10000000:
@@ -418,13 +421,13 @@ ORE_TYPES = {
     "shard": {"name": "幻片", "hp": 6000000, "exp": 8000, "gold": 28000,
               "col": 14, "dark": 2, "r": 11},
     # B6以降。本編クリア後の装備を前提にした硬さと実入りにする。
-    "abyss": {"name": "深層鉱", "hp": 40000000, "exp": 26000, "gold": 62000,
+    "abyss": {"name": "深層鉱", "hp": 40000000, "exp": 26000, "gold": 150000,
               "col": 3, "dark": 1, "r": 12},
-    "molten": {"name": "煉鉱", "hp": 105000000, "exp": 62000, "gold": 165000,
+    "molten": {"name": "煉鉱", "hp": 105000000, "exp": 62000, "gold": 420000,
                "col": 8, "dark": 4, "r": 12},
-    "void": {"name": "虚鉱", "hp": 270000000, "exp": 150000, "gold": 430000,
+    "void": {"name": "虚鉱", "hp": 270000000, "exp": 150000, "gold": 1200000,
              "col": 2, "dark": 1, "r": 12},
-    "primeval": {"name": "原鉱", "hp": 700000000, "exp": 380000, "gold": 1150000,
+    "primeval": {"name": "原鉱", "hp": 700000000, "exp": 380000, "gold": 3200000,
                  "col": 7, "dark": 6, "r": 12},
 }
 PHANTOM_R = 12
@@ -468,7 +471,7 @@ FLOORS = [
         # 幻片は運を積むほど見つかる。運0では滅多に出ない。
         "spawn_luck": {"shard": 0.55},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
-        "ph_hp": 160000000, "ph_gold": 10000000, "ph_exp": 60000, "potion": 900000,
+        "ph_hp": 160000000, "ph_gold": 24000000, "ph_exp": 60000, "potion": 900000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
         "cat_find": 50000,
     },
@@ -478,7 +481,7 @@ FLOORS = [
         "spawn": {"gem": 12, "bismuth": 20, "shard": 20, "abyss": 48},
         "spawn_luck": {"abyss": 0.5},
         "boss": "深層の主", "witch": "……まだ来るのかい。もう驚かないよ。",
-        "ph_hp": 400000000, "ph_gold": 37000000, "ph_exp": 120000, "potion": 1500000,
+        "ph_hp": 400000000, "ph_gold": 92000000, "ph_exp": 120000, "potion": 3500000,
         # 当てても去らずに狙い直す。ネコのクールタイム5秒では捌ききれなくなる。
         "pest": {"every": 11, "speed": 2.10, "warn": 16, "max": 2, "linger": True},
         "cat_find": 130000,
@@ -488,7 +491,7 @@ FLOORS = [
         "spawn": {"bismuth": 12, "shard": 16, "abyss": 24, "molten": 48},
         "spawn_luck": {"molten": 0.5},
         "boss": "溶鉄の巨腕", "witch": "この深さで店を開くのは、あたしとあんただけさ。",
-        "ph_hp": 1400000000, "ph_gold": 155000000, "ph_exp": 260000, "potion": 4000000,
+        "ph_hp": 1400000000, "ph_gold": 390000000, "ph_exp": 260000, "potion": 9000000,
         "pest": {"every": 11, "speed": 2.15, "warn": 15, "max": 2, "linger": True},
         "cat_find": 210000,
     },
@@ -497,7 +500,7 @@ FLOORS = [
         "spawn": {"shard": 12, "abyss": 16, "molten": 24, "void": 48},
         "spawn_luck": {"void": 0.5},
         "boss": "虚無を這うもの", "witch": "何を探してるのか、もう聞かないでおくよ。",
-        "ph_hp": 5500000000, "ph_gold": 660000000, "ph_exp": 560000, "potion": 15000000,
+        "ph_hp": 5500000000, "ph_gold": 1700000000, "ph_exp": 560000, "potion": 35000000,
         "pest": {"every": 10, "speed": 2.20, "warn": 15, "max": 2, "linger": True},
         "cat_find": 320000,
     },
@@ -506,7 +509,7 @@ FLOORS = [
         "spawn": {"abyss": 12, "molten": 16, "void": 24, "primeval": 48},
         "spawn_luck": {"primeval": 0.5},
         "boss": "原初の鼓動", "witch": "ここまで来たら、戻る方が遠い。",
-        "ph_hp": 21000000000, "ph_gold": 300000000, "ph_exp": 1200000, "potion": 40000000,
+        "ph_hp": 21000000000, "ph_gold": 800000000, "ph_exp": 1200000, "potion": 100000000,
         "pest": {"every": 10, "speed": 2.25, "warn": 14, "max": 2, "linger": True},
         "cat_find": 500000,
     },
@@ -515,7 +518,7 @@ FLOORS = [
         "spawn": {"molten": 14, "void": 26, "primeval": 60},
         "spawn_luck": {"primeval": 0.5},
         "boss": "幻鉱そのもの", "witch": "……行っといで。ここで待ってる。",
-        "ph_hp": 90000000000, "ph_gold": 3000000000, "ph_exp": 3000000, "potion": 100000000,
+        "ph_hp": 90000000000, "ph_gold": 8000000000, "ph_exp": 3000000, "potion": 250000000,
         "pest": {"every": 9, "speed": 2.30, "warn": 14, "max": 2, "linger": True},
         "cat_find": 800000,
     },
@@ -534,10 +537,10 @@ PICKAXES = [
     # ここから深層。B6以降でしか売られないので、本編だけ遊ぶ人の目には触れない。
     # 倍率は全体と同じ x2.9 の梯子。値段は「一つ前の階のボス報酬で6〜7割まで賄える」
     # ように置く（本編と同じ「あと一歩」の設計ルール）。
-    {"name": "深淵のピッケル", "mult": 640, "price": 14000000, "col": 3, "deep": True},
-    {"name": "煉獄のピッケル", "mult": 1850, "price": 60000000, "col": 8, "deep": True},
-    {"name": "虚無のピッケル", "mult": 5400, "price": 260000000, "col": 2, "deep": True},
-    {"name": "原初のピッケル", "mult": 15700, "price": 1100000000, "col": 7, "deep": True},
+    {"name": "深淵のピッケル", "mult": 640, "price": 35000000, "col": 3, "deep": True},
+    {"name": "煉獄のピッケル", "mult": 1850, "price": 150000000, "col": 8, "deep": True},
+    {"name": "虚無のピッケル", "mult": 5400, "price": 650000000, "col": 2, "deep": True},
+    {"name": "原初のピッケル", "mult": 15700, "price": 2800000000, "col": 7, "deep": True},
 ]
 
 #   max は本編での上限、deep_max は深層で解放される上限。
@@ -582,8 +585,8 @@ RATE_PER_SPEED_LV = 2.0
 # 揃えるとコンプリート称号がつく。
 TRINKETS = [
     ("dog", "むだ犬", "ただ付いてくるだけ", 1_000_000_000),
-    ("bird", "むだ鳥", "ほんとに付いてくるだけ", 2_000_000_000),
-    ("statue", "自分の像", "坑道の入口に飾られる（見えない）", 5_000_000_000),
+    ("bird", "むだ鳥", "ほんとに付いてくるだけ", 3_000_000_000),
+    ("statue", "自分の像", "坑道の入口に飾られる（見えない）", 8_000_000_000),
 ]
 
 
