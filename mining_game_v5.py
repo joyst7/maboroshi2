@@ -518,7 +518,7 @@ FLOORS = [
         "spawn": {"molten": 14, "void": 26, "primeval": 60},
         "spawn_luck": {"primeval": 0.5},
         "boss": "幻鉱そのもの", "witch": "……行っといで。ここで待ってる。",
-        "ph_hp": 90000000000, "ph_gold": 8000000000, "ph_exp": 3000000, "potion": 250000000,
+        "ph_hp": 90000000000, "ph_gold": 3000000000, "ph_exp": 3000000, "potion": 250000000,
         "pest": {"every": 9, "speed": 2.30, "warn": 14, "max": 2, "linger": True},
         "cat_find": 800000,
     },
@@ -1682,8 +1682,10 @@ class App:
     # --- 採掘 ---------------------------------------------------------------
     @property
     def mine_reach(self):
-        # 掘進 Lv0（本編）は 9px のまま。深層で伸ばすと円が広がる。
-        return MINE_REACH + self.player.upgrades["reach"] * 9
+        # 掘進 Lv0（本編）は 9px のまま。深層で伸ばすと円が広がるが、
+        # 最大でも画面の 1/4 を囲むくらい（半径 ~63px）で止める。
+        # それ以上だと画面外にサークルが出て「掘ってる感」が消える。
+        return MINE_REACH + int(self.player.upgrades["reach"] * 3.6)
 
     def find_target(self):
         best, best_d = None, 1e9
@@ -1795,19 +1797,15 @@ class App:
     def on_phantom_break(self, ore):
         p = self.player
 
-        if self.floor_index in (NORMAL_LAST, len(FLOORS) - 1):
-            # 深層へ潜る人のために、ここでも報酬は渡しておく。
-            # 次の階で欲しいピッケルの6〜9割をボスが賄い、残りを掘って埋める、
-            # という本編と同じ「あと一歩」の形を深層でも保つ。
+        if self.floor_index == NORMAL_LAST:
+            # 本編クリア。ランクとタイムをここで確定させ、以後は動かさない。
             p.gold += int(ore.gold * p.gold_mult)
             p.gain_exp(ore.exp)
             pyxel.stop()
             pyxel.play(1, 7)
-            if self.floor_index == NORMAL_LAST:
-                # 本編クリア。ここでランクとタイムを確定させ、以後は動かさない。
-                self.rank = self.judge_rank()
-                self.clear_time = self.play_frames
-            self.deep_end = self.floor_index != NORMAL_LAST
+            self.rank = self.judge_rank()
+            self.clear_time = self.play_frames
+            self.deep_end = False
             self.clear_page = 0
             self.clear_frames = 0
             self.state = ST_CLEAR
@@ -1825,9 +1823,13 @@ class App:
         p.gain_exp(int(ore.exp * rate))
         self.popups.append(Popup(ore.x, ore.y - 14, f"+{fmt(gold)}", 10, crit=True))
 
+        last = self.floor_index == len(FLOORS) - 1
         if first:
             self.spawn_ladder(ore.x, ore.y)
-            self.set_message(f"{ore.name}を砕いた！ 下への道が開けた", 11)
+            if last:
+                self.set_message(f"{ore.name}を砕いた！  上への道が開けた", 10)
+            else:
+                self.set_message(f"{ore.name}を砕いた！ 下への道が開けた", 11)
         else:
             self.set_message(f"{ore.name}を砕いた！  +{fmt(gold)}", 11)
 
@@ -1870,6 +1872,18 @@ class App:
         if self.ladder is None:
             return
         if math.hypot(self.player.x - self.ladder[0], self.player.y - self.ladder[1]) > 14:
+            return
+        if self.floor_index == len(FLOORS) - 1:
+            # B10 の主を砕いたあとのハシゴ。登る＝坑道を出る＝エンディング。
+            # 撃破後もそのまま居残って稼げるので、コンプ狙いはハシゴを無視して掘り続ける。
+            pyxel.stop()
+            pyxel.play(1, 7)
+            self.deep_end = True
+            self.clear_page = 0
+            self.clear_frames = 0
+            self.state = ST_CLEAR
+            if self.bgm_on:
+                pyxel.playm(1, loop=True)
             return
         self.floor_index += 1
         self.ladder = None
@@ -1994,7 +2008,7 @@ class App:
                           "sub": "ついてくる。邪魔者を追い払う", "price": CAT_PRICE, "col": 10})
         elif self.in_deep and not self.cat_bell:
             items.append({"type": "bell", "label": "ネコの鈴",
-                          "sub": "ネコが続けざまに飛びかかれるようになる",
+                          "sub": "ネコの動きが少し軽くなる",
                           "price": CAT_BELL_PRICE, "col": 10})
         left = POTION_PER_FLOOR - p.potions_bought
         items.append({"type": "potion",
@@ -2269,7 +2283,8 @@ class App:
             for i in range(5):
                 pyxel.rect(x - 6, y - 9 + i * 4, 12, 1, glow)
         if math.hypot(self.player.x - x, self.player.y - y) <= 14:
-            text_center_shadow(x, y - 24, "[X] 降りる", 11)
+            last = self.floor_index == len(FLOORS) - 1
+            text_center_shadow(x, y - 24, "[X] 坑道を出る" if last else "[X] 降りる", 11)
 
     # --- 上部の情報帯 -------------------------------------------------------
     def draw_top_bar(self):
