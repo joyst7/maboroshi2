@@ -418,13 +418,13 @@ ORE_TYPES = {
     "shard": {"name": "幻片", "hp": 6000000, "exp": 8000, "gold": 28000,
               "col": 14, "dark": 2, "r": 11},
     # B6以降。本編クリア後の装備を前提にした硬さと実入りにする。
-    "abyss": {"name": "深層鉱", "hp": 40000000, "exp": 26000, "gold": 25000,
+    "abyss": {"name": "深層鉱", "hp": 40000000, "exp": 26000, "gold": 62000,
               "col": 3, "dark": 1, "r": 12},
-    "molten": {"name": "煉鉱", "hp": 105000000, "exp": 62000, "gold": 62000,
+    "molten": {"name": "煉鉱", "hp": 105000000, "exp": 62000, "gold": 165000,
                "col": 8, "dark": 4, "r": 12},
-    "void": {"name": "虚鉱", "hp": 270000000, "exp": 150000, "gold": 155000,
+    "void": {"name": "虚鉱", "hp": 270000000, "exp": 150000, "gold": 430000,
              "col": 2, "dark": 1, "r": 12},
-    "primeval": {"name": "原鉱", "hp": 700000000, "exp": 380000, "gold": 400000,
+    "primeval": {"name": "原鉱", "hp": 700000000, "exp": 380000, "gold": 1150000,
                  "col": 7, "dark": 6, "r": 12},
 }
 PHANTOM_R = 12
@@ -475,48 +475,48 @@ FLOORS = [
     # ------------------------------------------------------------------ 深層
     {
         "name": "B6F 深層", "bg": 1, "rock": 1, "pal": {4: 1, 13: 5, 9: 12},
-        "spawn": {"gold": 10, "gem": 22, "bismuth": 26, "shard": 24, "abyss": 18},
-        "spawn_luck": {"shard": 0.4, "abyss": 0.5},
+        "spawn": {"gem": 12, "bismuth": 20, "shard": 20, "abyss": 48},
+        "spawn_luck": {"abyss": 0.5},
         "boss": "深層の主", "witch": "……まだ来るのかい。もう驚かないよ。",
-        "ph_hp": 500000000, "ph_gold": 16000000, "ph_exp": 120000, "potion": 1200000,
+        "ph_hp": 400000000, "ph_gold": 37000000, "ph_exp": 120000, "potion": 1500000,
         # 当てても去らずに狙い直す。ネコのクールタイム5秒では捌ききれなくなる。
         "pest": {"every": 11, "speed": 2.10, "warn": 16, "max": 2, "linger": True},
         "cat_find": 130000,
     },
     {
         "name": "B7F 溶鉄郷", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 8},
-        "spawn": {"gem": 8, "bismuth": 16, "shard": 22, "abyss": 30, "molten": 24},
-        "spawn_luck": {"abyss": 0.4, "molten": 0.5},
+        "spawn": {"bismuth": 12, "shard": 16, "abyss": 24, "molten": 48},
+        "spawn_luck": {"molten": 0.5},
         "boss": "溶鉄の巨腕", "witch": "この深さで店を開くのは、あたしとあんただけさ。",
-        "ph_hp": 1500000000, "ph_gold": 40000000, "ph_exp": 260000, "potion": 1600000,
+        "ph_hp": 1400000000, "ph_gold": 155000000, "ph_exp": 260000, "potion": 4000000,
         "pest": {"every": 11, "speed": 2.15, "warn": 15, "max": 2, "linger": True},
         "cat_find": 210000,
     },
     {
         "name": "B8F 虚無の淵", "bg": 2, "rock": 1, "pal": {4: 2, 13: 1, 9: 13},
-        "spawn": {"bismuth": 8, "shard": 16, "abyss": 24, "molten": 28, "void": 24},
-        "spawn_luck": {"molten": 0.4, "void": 0.5},
+        "spawn": {"shard": 12, "abyss": 16, "molten": 24, "void": 48},
+        "spawn_luck": {"void": 0.5},
         "boss": "虚無を這うもの", "witch": "何を探してるのか、もう聞かないでおくよ。",
-        "ph_hp": 4500000000, "ph_gold": 116000000, "ph_exp": 560000, "potion": 2200000,
-        "pest": {"every": 10, "speed": 2.20, "warn": 15, "max": 3, "linger": True},
+        "ph_hp": 5500000000, "ph_gold": 660000000, "ph_exp": 560000, "potion": 15000000,
+        "pest": {"every": 10, "speed": 2.20, "warn": 15, "max": 2, "linger": True},
         "cat_find": 320000,
     },
     {
         "name": "B9F 原初の坑", "bg": 1, "rock": 1, "pal": {4: 1, 13: 13, 9: 6},
-        "spawn": {"shard": 8, "abyss": 16, "molten": 24, "void": 28, "primeval": 24},
-        "spawn_luck": {"void": 0.4, "primeval": 0.5},
+        "spawn": {"abyss": 12, "molten": 16, "void": 24, "primeval": 48},
+        "spawn_luck": {"primeval": 0.5},
         "boss": "原初の鼓動", "witch": "ここまで来たら、戻る方が遠い。",
-        "ph_hp": 14000000000, "ph_gold": 60000000, "ph_exp": 1200000, "potion": 3000000,
-        "pest": {"every": 10, "speed": 2.25, "warn": 14, "max": 3, "linger": True},
+        "ph_hp": 21000000000, "ph_gold": 300000000, "ph_exp": 1200000, "potion": 40000000,
+        "pest": {"every": 10, "speed": 2.25, "warn": 14, "max": 2, "linger": True},
         "cat_find": 500000,
     },
     {
         "name": "B10F 幻鉱の源", "bg": 0, "rock": 5, "pal": {4: 0, 13: 5, 9: 7},
-        "spawn": {"abyss": 12, "molten": 22, "void": 30, "primeval": 36},
+        "spawn": {"molten": 14, "void": 26, "primeval": 60},
         "spawn_luck": {"primeval": 0.5},
         "boss": "幻鉱そのもの", "witch": "……行っといで。ここで待ってる。",
-        "ph_hp": 45000000000, "ph_gold": 800000000, "ph_exp": 3000000, "potion": 4000000,
-        "pest": {"every": 9, "speed": 2.30, "warn": 14, "max": 3, "linger": True},
+        "ph_hp": 90000000000, "ph_gold": 3000000000, "ph_exp": 3000000, "potion": 100000000,
+        "pest": {"every": 9, "speed": 2.30, "warn": 14, "max": 2, "linger": True},
         "cat_find": 800000,
     },
 ]
@@ -534,10 +534,10 @@ PICKAXES = [
     # ここから深層。B6以降でしか売られないので、本編だけ遊ぶ人の目には触れない。
     # 倍率は全体と同じ x2.9 の梯子。値段は「一つ前の階のボス報酬で6〜7割まで賄える」
     # ように置く（本編と同じ「あと一歩」の設計ルール）。
-    {"name": "深淵のピッケル", "mult": 640, "price": 16500000, "col": 3, "deep": True},
-    {"name": "煉獄のピッケル", "mult": 1850, "price": 27000000, "col": 8, "deep": True},
-    {"name": "虚無のピッケル", "mult": 5400, "price": 68000000, "col": 2, "deep": True},
-    {"name": "原初のピッケル", "mult": 15700, "price": 195000000, "col": 7, "deep": True},
+    {"name": "深淵のピッケル", "mult": 640, "price": 14000000, "col": 3, "deep": True},
+    {"name": "煉獄のピッケル", "mult": 1850, "price": 60000000, "col": 8, "deep": True},
+    {"name": "虚無のピッケル", "mult": 5400, "price": 260000000, "col": 2, "deep": True},
+    {"name": "原初のピッケル", "mult": 15700, "price": 1100000000, "col": 7, "deep": True},
 ]
 
 #   max は本編での上限、deep_max は深層で解放される上限。
@@ -564,7 +564,7 @@ UPGRADES = [
     # 実測すると収入は1.3倍程度にしかならない（ボトルネックは鉱石の量ではなく硬さ）。
     # これは効率を買う品ではなく、画面が鉱石で埋まる爽快さを買う品。
     # だから値段も投資として見合う額ではなく、気軽に伸ばせる額に置く。
-    {"key": "vein", "name": "鉱床ニョキニョキ", "desc": "鉱石が一度にたくさん湧く",
+    {"key": "vein", "name": "鉱床ニョキニョキ", "desc": "鉱石がたくさん湧いて実入りも増える",
      "base": 80000, "rate": 1.15, "max": 0, "deep_max": 23, "deep": True},
 ]
 
@@ -1101,7 +1101,8 @@ class Player:
 
     @property
     def gold_mult(self):
-        return 1.0 + self.upgrades["luck"] * 0.08
+        # 鉱床ニョキニョキは深層でしか買えない。鉱石が増える＝実入りも増える。
+        return 1.0 + self.upgrades["luck"] * 0.08 + self.upgrades["vein"] * 0.02
 
     def attack_damage(self, crit):
         dmg = self.base_attack * PICKAXES[self.pickaxe]["mult"] * self.combo_mult
@@ -2384,8 +2385,8 @@ class App:
 
         head1, head2, sub = "幻の鉱石を", "手に入れた！", "これだけあれば一生遊んで暮らせる！"
         if self.deep_end:
-            head1, head2 = "坑道の果てに", "たどり着いた"
-            sub = f"最深部 {FLOORS[self.floor_index]['name']} を踏破"
+            head1, head2 = "坑道の底まで", "掘りきった！"
+            sub = "こんな大金、使いきれるわけがない！"
 
         if t >= cue["title1"]:
             text_big(SCREEN_W // 2, 12, head1, col, scale=2)
@@ -2419,7 +2420,7 @@ class App:
         if t >= cue["hint"]:
             if self.deep_end:
                 if (pyxel.frame_count // 15) % 2 == 0:
-                    text_center(SCREEN_W // 2, 202, "[Z] ……その先を見る", 11)
+                    text_center(SCREEN_W // 2, 202, "[Z] さいごまで見る", 11)
             elif can_deep:
                 if (pyxel.frame_count // 15) % 2 == 0:
                     text_center(SCREEN_W // 2, 202, "[Z] ……坑道の底から、音がする", 11)
@@ -2439,19 +2440,19 @@ class App:
             pyxel.pset(x, y, 1 if i % 3 else 5)
 
         if self.deep_end:
-            text_center(SCREEN_W // 2, 22, "―― 幻鉱 -MABOROSHI- ――", 8)
+            text_center(SCREEN_W // 2, 22, "―― おしまい ――", 8)
             lines = [
-                "岩壁の向こうにあったのは、",
-                "坑道でも鉱脈でもなかった。",
+                "いちばん下まで掘ると、",
+                "そこは幻の鉱石だらけだった。",
                 "",
-                "山のすべてが、ひとつの",
-                "巨大な鉱石だった。",
-                "はじめから、そうだった。",
+                "もう どれが本物か",
+                "わからないくらいに。",
                 "",
-                "「幻の鉱石」を探して掘り続け、",
-                "気づけば、その中にいた。",
+                "大きな袋に幻の鉱石を詰めこんで、",
+                "鼻歌まじりで地上へのぼった。",
                 "",
-                "つるはしを、そっと置いた。",
+                "町じゅうの子どもに",
+                "お菓子をおごってやった。",
             ]
         else:
             text_center(SCREEN_W // 2, 22, "―― 真エンディング ――", 8)
