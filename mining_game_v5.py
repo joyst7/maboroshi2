@@ -120,7 +120,7 @@ PHANTOM_RESPAWN_LUCK = 0.012          # 運1につき出現率
 PHANTOM_RESPAWN_COOLDOWN = 45 * FPS
 PHANTOM_RESPAWN_LUCK_COOL = 1.4 * FPS  # 運1につき待ちを短縮
 PHANTOM_REPEAT_REWARD = 0.12          # 2体目の報酬の割合
-PHANTOM_REPEAT_LUCK = 0.022           # 運1につき割合を戻す
+PHANTOM_REPEAT_LUCK = 0.015           # 運1につき割合を戻す
 #   同じ階で狩るほど取り分が減る。これが無いと、絞っても無限に回せる蛇口のままになる。
 #   減衰0.55だと、居座って得られる合計は「ボス報酬 x 割合 x 1.8」で頭打ちになり、
 #   運を極めても最終ピッケル1本ぶんには届かない。ボーナスであって金策にはならない。
@@ -566,10 +566,25 @@ UPGRADES = [
     # だから値段も投資として見合う額ではなく、気軽に伸ばせる額に置く。
     {"key": "vein", "name": "鉱床ニョキニョキ", "desc": "鉱石がたくさん湧いて実入りも増える",
      "base": 80000, "rate": 1.15, "max": 0, "deep_max": 23, "deep": True},
+    # ニョキニョキで画面が鉱石だらけになると、密着方式では刈り取りが追いつかない。
+    # 掘る判定を円状に広げる。最大まで伸ばすと画面の半分ほどに届き、
+    # 中央で少し動くだけで束で掘れる。深層の最後の爽快枠。
+    # AoEの収入倍率が大きいので、値段はずっと高くする。
+    # 序盤の効率投資ではなく、金が余った終盤の贅沢枠として置く。
+    {"key": "reach", "name": "掘進(くっしん)", "desc": "はなれた鉱石も まとめて掘れる",
+     "base": 4000000, "rate": 1.34, "max": 0, "deep_max": 15, "deep": True},
 ]
 
 BASE_MINING_RATE = 6.0     # 押しっぱなしのときの毎秒の振り回数
 RATE_PER_SPEED_LV = 2.0
+
+# 深層の最果て。全部買ってもまだ金が余るコレクター向け。効果は一切ない。
+# 揃えるとコンプリート称号がつく。
+TRINKETS = [
+    ("dog", "むだ犬", "ただ付いてくるだけ", 1_000_000_000),
+    ("bird", "むだ鳥", "ほんとに付いてくるだけ", 2_000_000_000),
+    ("statue", "自分の像", "坑道の入口に飾られる（見えない）", 5_000_000_000),
+]
 
 
 # ==============================================================================
@@ -1225,6 +1240,8 @@ class App:
         self.pest_timer = 0
         self.cat = None
         self.cat_bell = False
+        self.trinkets = set()       # 買ったコレクション（ただ付いてくるだけ）
+        self.completed = False
         self.particles = []
         self.popups = []
         self.ladder = None
@@ -1379,21 +1396,21 @@ class App:
         """押した瞬間は必ず1回振る。押しっぱなしの間は毎秒 mining_rate 回まで自動で振る。
         つまり手動連打は自動連打より速くできるので、連打がそのまま腕前になる。"""
         p = self.player
-        target = self.find_target()
+        targets = self.find_targets()
 
         if pyxel.btnp(pyxel.KEY_Z):
             p.mine_charge = 0.0
-            if target is not None:
-                self.mine(target)
+            for o in targets:
+                self.mine(o)
         elif pyxel.btn(pyxel.KEY_Z):
             p.mine_charge += p.mining_rate / FPS
             while p.mine_charge >= 1.0:
                 p.mine_charge -= 1.0
-                if target is None:
+                if not targets:
                     break
-                self.mine(target)
-                if target.hp <= 0:
-                    break
+                for o in targets:
+                    if o in self.ores:
+                        self.mine(o)
         else:
             p.mine_charge = 0.0
 
@@ -1660,13 +1677,25 @@ class App:
         return None
 
     # --- 採掘 ---------------------------------------------------------------
+    @property
+    def mine_reach(self):
+        # 掘進 Lv0（本編）は 9px のまま。深層で伸ばすと円が広がる。
+        return MINE_REACH + self.player.upgrades["reach"] * 9
+
     def find_target(self):
         best, best_d = None, 1e9
+        r = self.mine_reach
         for o in self.ores:
             d = math.hypot(o.x - self.player.x, o.y - self.player.y) - o.r
-            if d <= MINE_REACH and d < best_d:
+            if d <= r and d < best_d:
                 best, best_d = o, d
         return best
+
+    def find_targets(self):
+        """掘る判定の円に入っている鉱石を全部返す。掘進が0なら実質いつも1個以下。"""
+        r = self.mine_reach
+        return [o for o in self.ores
+                if math.hypot(o.x - self.player.x, o.y - self.player.y) - o.r <= r]
 
     def mine(self, ore):
         p = self.player
@@ -1970,6 +1999,13 @@ class App:
                       "sub": ("飲むまで効き目はわからない"
                               if left > 0 else "この階ではもう売ってくれない"),
                       "price": self.potion_price() if left > 0 else None, "col": 10})
+        # コレクション。深層で、他に買うものがなくなった金持ち向け。
+        if self.in_deep:
+            for key, name, sub, price in TRINKETS:
+                bought = key in self.trinkets
+                items.append({"type": "trinket", "key": key,
+                              "label": name if not bought else f"{name}（所持）",
+                              "sub": sub, "price": None if bought else price, "col": 14})
         return items
 
     SHOP_ROWS = 6
@@ -2022,11 +2058,34 @@ class App:
         elif item["type"] == "cat":
             self.cat = Cat(p.x - p.face * 15, p.y + 4)
             self.set_message("ほりほりネコが ついてきた！", 11)
+        elif item["type"] == "trinket":
+            self.trinkets.add(item["key"])
+            self.set_message(f"{item['label']} を買った。……で、なんの意味が？", 14)
+            self.check_completion()
         else:
             p.potions += 1
             p.potions_bought += 1
             left = POTION_PER_FLOOR - p.potions_bought
             self.set_message(f"怪しい薬を買った（この階であと{left}本）", 11)
+        if item["type"] in ("pickaxe", "upgrade", "bell"):
+            self.check_completion()
+
+    def check_completion(self):
+        """深層の店の品を全部買い切ったか。買い切ると称号がつく。"""
+        if self.completed:
+            return
+        p = self.player
+        # 深層の店に並ぶ全部（深層ピッケル4本＋強化カンスト＋ネコ＋鈴＋コレクション）
+        all_pick = all(i in p.owned for i in range(6, len(PICKAXES)))
+        all_up = all(p.upgrades[u["key"]] >= u.get("deep_max", u["max"]) for u in UPGRADES)
+        all_trink = len(self.trinkets) >= len(TRINKETS)
+        if all_pick and all_up and self.cat is not None and self.cat_bell and all_trink:
+            self.completed = True
+            self.set_message("すべて手に入れた。コンプリート！", 10)
+            self.add_shake(SHAKE_PHANTOM)
+            for _ in range(60):
+                self.particles.append(
+                    Particle(p.x, p.y, 10 if _ % 2 else 7, speed=3.4, life=34))
 
     def update_clear(self):
         self.clear_frames += 1
@@ -2143,11 +2202,18 @@ class App:
         if self.ladder:
             self.draw_ladder(*self.ladder)
 
+        # 掘進の届く範囲を薄い円で見せる（伸ばしているときだけ）
+        if self.player.upgrades["reach"] > 0:
+            rr = self.mine_reach
+            col = 12 if pyxel.btn(pyxel.KEY_Z) else 1
+            pyxel.circb(int(self.player.x), int(self.player.y), int(rr), col)
+
         target = self.find_target()
         for o in sorted(self.ores, key=lambda o: o.y):
             o.draw(targeted=(o is target))
         if self.cat is not None:
             self.cat.draw()
+        self.draw_trinkets()
         self.player.draw()
         for q in self.pests:
             q.draw()
@@ -2160,6 +2226,31 @@ class App:
         pyxel.clip()
         pyxel.line(0, FIELD_TOP - 1, SCREEN_W, FIELD_TOP - 1, 5)
         pyxel.line(0, FIELD_BOTTOM, SCREEN_W, FIELD_BOTTOM, 5)
+
+    def draw_trinkets(self):
+        """買ったコレクションが列になって付いてくる。ゲーム的な効果はない。"""
+        if not self.trinkets:
+            return
+        p = self.player
+        f = -p.face
+        for i, spec in enumerate(TRINKETS):
+            key = spec[0]
+            if key not in self.trinkets:
+                continue
+            wob = math.sin(pyxel.frame_count * 0.15 + i) * 2
+            tx = int(p.x + f * (18 + i * 11))
+            ty = int(p.y + 4 + wob)
+            if key == "dog":
+                pyxel.rect(tx - 3, ty - 2, 6, 4, 4)
+                pyxel.rect(tx + f * 3, ty - 3, 3, 3, 4)
+                pyxel.pset(tx - f * 4, ty - 2, 4)          # しっぽ
+            elif key == "bird":
+                pyxel.rect(tx - 2, ty - 2 - 3, 4, 3, 12)
+                pyxel.tri(tx - 3, ty - 4, tx + 3, ty - 4,
+                          tx, ty - 4 - 2 + int(wob), 12)   # 羽ばたき
+            elif key == "statue":
+                pyxel.rect(tx - 2, ty - 5, 4, 6, 6)
+                pyxel.pset(tx, ty - 6, 6)
 
     def draw_ladder(self, x, y):
         pyxel.rect(x - 8, y - 13, 16, 26, 0)
@@ -2387,6 +2478,8 @@ class App:
         if self.deep_end:
             head1, head2 = "坑道の底まで", "掘りきった！"
             sub = "こんな大金、使いきれるわけがない！"
+        if self.completed:
+            sub = "ぜんぶ買った ―― コンプリート！"
 
         if t >= cue["title1"]:
             text_big(SCREEN_W // 2, 12, head1, col, scale=2)
