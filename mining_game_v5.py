@@ -313,6 +313,9 @@ SPR_ORE_RECOLOR = {
     "bismuth": ("gem", {11: 12, 3: 5}),
     "shard": ("gem", {11: 14, 3: 2}),
     "abyss": ("gem", {11: 3, 3: 1}),
+    "molten": ("gem", {11: 8, 3: 4}),
+    "void": ("gem", {11: 2, 3: 1}),
+    "primeval": ("gem", {11: 7, 3: 6}),
 }
 
 
@@ -382,8 +385,12 @@ def text_big(cx, y, s, col, scale=3):
 
 def fmt(n):
     n = int(n)
+    # 深層は億の桁に届く。1000万を超えたら小数を落として万でまとめ、
+    # 1億以上は億で丸める。数字が長いとテロップに収まらないため。
     if n >= 100000000:
         return f"{n / 100000000:.1f}億"
+    if n >= 10000000:
+        return f"{n // 10000:,}万"
     if n >= 10000:
         return f"{n / 10000:.1f}万"
     return f"{n:,}"
@@ -413,6 +420,12 @@ ORE_TYPES = {
     # B6以降。本編クリア後の装備を前提にした硬さと実入りにする。
     "abyss": {"name": "深層鉱", "hp": 40000000, "exp": 26000, "gold": 25000,
               "col": 3, "dark": 1, "r": 12},
+    "molten": {"name": "煉鉱", "hp": 105000000, "exp": 62000, "gold": 62000,
+               "col": 8, "dark": 4, "r": 12},
+    "void": {"name": "虚鉱", "hp": 270000000, "exp": 150000, "gold": 155000,
+             "col": 2, "dark": 1, "r": 12},
+    "primeval": {"name": "原鉱", "hp": 700000000, "exp": 380000, "gold": 400000,
+                 "col": 7, "dark": 6, "r": 12},
 }
 PHANTOM_R = 12
 
@@ -455,7 +468,7 @@ FLOORS = [
         # 幻片は運を積むほど見つかる。運0では滅多に出ない。
         "spawn_luck": {"shard": 0.55},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
-        "ph_hp": 160000000, "ph_gold": 2600000, "ph_exp": 60000, "potion": 900000,
+        "ph_hp": 160000000, "ph_gold": 10000000, "ph_exp": 60000, "potion": 900000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
         "cat_find": 50000,
     },
@@ -465,10 +478,46 @@ FLOORS = [
         "spawn": {"gold": 10, "gem": 22, "bismuth": 26, "shard": 24, "abyss": 18},
         "spawn_luck": {"shard": 0.4, "abyss": 0.5},
         "boss": "深層の主", "witch": "……まだ来るのかい。もう驚かないよ。",
-        "ph_hp": 500000000, "ph_gold": 2500000, "ph_exp": 120000, "potion": 1200000,
+        "ph_hp": 500000000, "ph_gold": 16000000, "ph_exp": 120000, "potion": 1200000,
         # 当てても去らずに狙い直す。ネコのクールタイム5秒では捌ききれなくなる。
         "pest": {"every": 11, "speed": 2.10, "warn": 16, "max": 2, "linger": True},
         "cat_find": 130000,
+    },
+    {
+        "name": "B7F 溶鉄郷", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 8},
+        "spawn": {"gem": 8, "bismuth": 16, "shard": 22, "abyss": 30, "molten": 24},
+        "spawn_luck": {"abyss": 0.4, "molten": 0.5},
+        "boss": "溶鉄の巨腕", "witch": "この深さで店を開くのは、あたしとあんただけさ。",
+        "ph_hp": 1500000000, "ph_gold": 40000000, "ph_exp": 260000, "potion": 1600000,
+        "pest": {"every": 11, "speed": 2.15, "warn": 15, "max": 2, "linger": True},
+        "cat_find": 210000,
+    },
+    {
+        "name": "B8F 虚無の淵", "bg": 2, "rock": 1, "pal": {4: 2, 13: 1, 9: 13},
+        "spawn": {"bismuth": 8, "shard": 16, "abyss": 24, "molten": 28, "void": 24},
+        "spawn_luck": {"molten": 0.4, "void": 0.5},
+        "boss": "虚無を這うもの", "witch": "何を探してるのか、もう聞かないでおくよ。",
+        "ph_hp": 4500000000, "ph_gold": 116000000, "ph_exp": 560000, "potion": 2200000,
+        "pest": {"every": 10, "speed": 2.20, "warn": 15, "max": 3, "linger": True},
+        "cat_find": 320000,
+    },
+    {
+        "name": "B9F 原初の坑", "bg": 1, "rock": 1, "pal": {4: 1, 13: 13, 9: 6},
+        "spawn": {"shard": 8, "abyss": 16, "molten": 24, "void": 28, "primeval": 24},
+        "spawn_luck": {"void": 0.4, "primeval": 0.5},
+        "boss": "原初の鼓動", "witch": "ここまで来たら、戻る方が遠い。",
+        "ph_hp": 14000000000, "ph_gold": 60000000, "ph_exp": 1200000, "potion": 3000000,
+        "pest": {"every": 10, "speed": 2.25, "warn": 14, "max": 3, "linger": True},
+        "cat_find": 500000,
+    },
+    {
+        "name": "B10F 幻鉱の源", "bg": 0, "rock": 5, "pal": {4: 0, 13: 5, 9: 7},
+        "spawn": {"abyss": 12, "molten": 22, "void": 30, "primeval": 36},
+        "spawn_luck": {"primeval": 0.5},
+        "boss": "幻鉱そのもの", "witch": "……行っといで。ここで待ってる。",
+        "ph_hp": 45000000000, "ph_gold": 800000000, "ph_exp": 3000000, "potion": 4000000,
+        "pest": {"every": 9, "speed": 2.30, "warn": 14, "max": 3, "linger": True},
+        "cat_find": 800000,
     },
 ]
 
@@ -483,7 +532,12 @@ PICKAXES = [
     # 低層ループは裏技であって基本ルートではないので、それを当てにした値付けはしない。
     {"name": "幻のピッケル", "mult": 220, "price": 1800000, "col": 8},
     # ここから深層。B6以降でしか売られないので、本編だけ遊ぶ人の目には触れない。
-    {"name": "深淵のピッケル", "mult": 640, "price": 3800000, "col": 3, "deep": True},
+    # 倍率は全体と同じ x2.9 の梯子。値段は「一つ前の階のボス報酬で6〜7割まで賄える」
+    # ように置く（本編と同じ「あと一歩」の設計ルール）。
+    {"name": "深淵のピッケル", "mult": 640, "price": 16500000, "col": 3, "deep": True},
+    {"name": "煉獄のピッケル", "mult": 1850, "price": 27000000, "col": 8, "deep": True},
+    {"name": "虚無のピッケル", "mult": 5400, "price": 68000000, "col": 2, "deep": True},
+    {"name": "原初のピッケル", "mult": 15700, "price": 195000000, "col": 7, "deep": True},
 ]
 
 #   max は本編での上限、deep_max は深層で解放される上限。
@@ -1986,6 +2040,10 @@ class App:
             if self.clear_page == 1 and push:
                 self.descend_to_deep()
                 return
+        if self.deep_end and self.clear_page == 0 and push:
+            # 深層を踏破した。結果 -> 締めの一枚 へ
+            self.clear_page = 1
+            return
         if pyxel.btnp(pyxel.KEY_R):
             self.reset()
             self.state = ST_PLAY
@@ -2324,12 +2382,17 @@ class App:
         col = 10 if (pyxel.frame_count // 8) % 2 == 0 else 7
         big_h = (FONT_H + 3) * 2
 
+        head1, head2, sub = "幻の鉱石を", "手に入れた！", "これだけあれば一生遊んで暮らせる！"
+        if self.deep_end:
+            head1, head2 = "坑道の果てに", "たどり着いた"
+            sub = f"最深部 {FLOORS[self.floor_index]['name']} を踏破"
+
         if t >= cue["title1"]:
-            text_big(SCREEN_W // 2, 12, "幻の鉱石を", col, scale=2)
+            text_big(SCREEN_W // 2, 12, head1, col, scale=2)
         if t >= cue["title2"]:
-            text_big(SCREEN_W // 2, 12 + big_h, "手に入れた！", col, scale=2)
+            text_big(SCREEN_W // 2, 12 + big_h, head2, col, scale=2)
         if t >= cue["sub"]:
-            text_center(SCREEN_W // 2, 76, "これだけあれば一生遊んで暮らせる！", 6)
+            text_center(SCREEN_W // 2, 76, sub, 6)
 
         box_y, box_h = 92, big_h + 4
         if t >= cue["box"]:
@@ -2354,7 +2417,10 @@ class App:
             text(140, y, v, 7)
 
         if t >= cue["hint"]:
-            if can_deep:
+            if self.deep_end:
+                if (pyxel.frame_count // 15) % 2 == 0:
+                    text_center(SCREEN_W // 2, 202, "[Z] ……その先を見る", 11)
+            elif can_deep:
                 if (pyxel.frame_count // 15) % 2 == 0:
                     text_center(SCREEN_W // 2, 202, "[Z] ……坑道の底から、音がする", 11)
             else:
@@ -2372,21 +2438,36 @@ class App:
             y = (i * 91 + pyxel.frame_count * 2) % SCREEN_H
             pyxel.pset(x, y, 1 if i % 3 else 5)
 
-        text_center(SCREEN_W // 2, 22, "―― 真エンディング ――", 8)
-
-        lines = [
-            "地上へ戻ろうとした、そのとき。",
-            "",
-            "幻の鉱石があった場所の奥から",
-            "青白い光が漏れていた。",
-            "",
-            "岩を砕くと 見たこともない",
-            "鉱石が埋まっていた。",
-            "しかも岩壁の向こうまで",
-            "どこまでも続いている。",
-            "",
-            "つるはしを握り直した。",
-        ]
+        if self.deep_end:
+            text_center(SCREEN_W // 2, 22, "―― 幻鉱 -MABOROSHI- ――", 8)
+            lines = [
+                "岩壁の向こうにあったのは、",
+                "坑道でも鉱脈でもなかった。",
+                "",
+                "山のすべてが、ひとつの",
+                "巨大な鉱石だった。",
+                "はじめから、そうだった。",
+                "",
+                "「幻の鉱石」を探して掘り続け、",
+                "気づけば、その中にいた。",
+                "",
+                "つるはしを、そっと置いた。",
+            ]
+        else:
+            text_center(SCREEN_W // 2, 22, "―― 真エンディング ――", 8)
+            lines = [
+                "地上へ戻ろうとした、そのとき。",
+                "",
+                "幻の鉱石があった場所の奥から",
+                "青白い光が漏れていた。",
+                "",
+                "岩を砕くと 見たこともない",
+                "鉱石が埋まっていた。",
+                "しかも岩壁の向こうまで",
+                "どこまでも続いている。",
+                "",
+                "つるはしを握り直した。",
+            ]
         for i, s in enumerate(lines):
             if s:
                 text(22, 50 + i * 15, s, 10 if i == len(lines) - 1 else 7)
