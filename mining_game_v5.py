@@ -421,13 +421,13 @@ ORE_TYPES = {
     "shard": {"name": "幻片", "hp": 6000000, "exp": 8000, "gold": 28000,
               "col": 14, "dark": 2, "r": 11},
     # B6以降。本編クリア後の装備を前提にした硬さと実入りにする。
-    "abyss": {"name": "深層鉱", "hp": 40000000, "exp": 26000, "gold": 150000,
+    "abyss": {"name": "深層鉱", "hp": 20000000, "exp": 26000, "gold": 230000,
               "col": 3, "dark": 1, "r": 12},
-    "molten": {"name": "煉鉱", "hp": 105000000, "exp": 62000, "gold": 420000,
+    "molten": {"name": "煉鉱", "hp": 55000000, "exp": 62000, "gold": 630000,
                "col": 8, "dark": 4, "r": 12},
-    "void": {"name": "虚鉱", "hp": 270000000, "exp": 150000, "gold": 1200000,
+    "void": {"name": "虚鉱", "hp": 140000000, "exp": 150000, "gold": 1800000,
              "col": 2, "dark": 1, "r": 12},
-    "primeval": {"name": "原鉱", "hp": 700000000, "exp": 380000, "gold": 3200000,
+    "primeval": {"name": "原鉱", "hp": 380000000, "exp": 380000, "gold": 4800000,
                  "col": 7, "dark": 6, "r": 12},
 }
 PHANTOM_R = 12
@@ -471,7 +471,7 @@ FLOORS = [
         # 幻片は運を積むほど見つかる。運0では滅多に出ない。
         "spawn_luck": {"shard": 0.55},
         "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
-        "ph_hp": 160000000, "ph_gold": 24000000, "ph_exp": 60000, "potion": 900000,
+        "ph_hp": 160000000, "ph_gold": 7000000, "ph_exp": 60000, "potion": 900000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
         "cat_find": 50000,
     },
@@ -481,7 +481,7 @@ FLOORS = [
         "spawn": {"gem": 12, "bismuth": 20, "shard": 20, "abyss": 48},
         "spawn_luck": {"abyss": 0.5},
         "boss": "深層の主", "witch": "……まだ来るのかい。もう驚かないよ。",
-        "ph_hp": 400000000, "ph_gold": 92000000, "ph_exp": 120000, "potion": 3500000,
+        "ph_hp": 1400000000, "ph_gold": 95000000, "ph_exp": 120000, "potion": 15000000,
         # 当てても去らずに狙い直す。ネコのクールタイム5秒では捌ききれなくなる。
         "pest": {"every": 11, "speed": 2.10, "warn": 16, "max": 2, "linger": True},
         "cat_find": 130000,
@@ -491,7 +491,7 @@ FLOORS = [
         "spawn": {"bismuth": 12, "shard": 16, "abyss": 24, "molten": 48},
         "spawn_luck": {"molten": 0.5},
         "boss": "溶鉄の巨腕", "witch": "この深さで店を開くのは、あたしとあんただけさ。",
-        "ph_hp": 1400000000, "ph_gold": 390000000, "ph_exp": 260000, "potion": 9000000,
+        "ph_hp": 5000000000, "ph_gold": 400000000, "ph_exp": 260000, "potion": 60000000,
         "pest": {"every": 11, "speed": 2.15, "warn": 15, "max": 2, "linger": True},
         "cat_find": 210000,
     },
@@ -500,7 +500,7 @@ FLOORS = [
         "spawn": {"shard": 12, "abyss": 16, "molten": 24, "void": 48},
         "spawn_luck": {"void": 0.5},
         "boss": "虚無を這うもの", "witch": "何を探してるのか、もう聞かないでおくよ。",
-        "ph_hp": 5500000000, "ph_gold": 1700000000, "ph_exp": 560000, "potion": 35000000,
+        "ph_hp": 19000000000, "ph_gold": 1100000000, "ph_exp": 560000, "potion": 150000000,
         "pest": {"every": 10, "speed": 2.20, "warn": 15, "max": 2, "linger": True},
         "cat_find": 320000,
     },
@@ -509,7 +509,7 @@ FLOORS = [
         "spawn": {"abyss": 12, "molten": 16, "void": 24, "primeval": 48},
         "spawn_luck": {"primeval": 0.5},
         "boss": "原初の鼓動", "witch": "ここまで来たら、戻る方が遠い。",
-        "ph_hp": 21000000000, "ph_gold": 800000000, "ph_exp": 1200000, "potion": 100000000,
+        "ph_hp": 70000000000, "ph_gold": 350000000, "ph_exp": 1200000, "potion": 300000000,
         "pest": {"every": 10, "speed": 2.25, "warn": 14, "max": 2, "linger": True},
         "cat_find": 500000,
     },
@@ -518,7 +518,7 @@ FLOORS = [
         "spawn": {"molten": 14, "void": 26, "primeval": 60},
         "spawn_luck": {"primeval": 0.5},
         "boss": "幻鉱そのもの", "witch": "……行っといで。ここで待ってる。",
-        "ph_hp": 90000000000, "ph_gold": 3000000000, "ph_exp": 3000000, "potion": 250000000,
+        "ph_hp": 130000000000, "ph_gold": 600000000, "ph_exp": 3000000, "potion": 600000000,
         "pest": {"every": 9, "speed": 2.30, "warn": 14, "max": 2, "linger": True},
         "cat_find": 800000,
     },
@@ -537,10 +537,10 @@ PICKAXES = [
     # ここから深層。B6以降でしか売られないので、本編だけ遊ぶ人の目には触れない。
     # 倍率は全体と同じ x2.9 の梯子。値段は「一つ前の階のボス報酬で6〜7割まで賄える」
     # ように置く（本編と同じ「あと一歩」の設計ルール）。
-    {"name": "深淵のピッケル", "mult": 640, "price": 35000000, "col": 3, "deep": True},
-    {"name": "煉獄のピッケル", "mult": 1850, "price": 150000000, "col": 8, "deep": True},
-    {"name": "虚無のピッケル", "mult": 5400, "price": 650000000, "col": 2, "deep": True},
-    {"name": "原初のピッケル", "mult": 15700, "price": 2800000000, "col": 7, "deep": True},
+    {"name": "深淵のピッケル", "mult": 640, "price": 32000000, "col": 3, "deep": True},
+    {"name": "煉獄のピッケル", "mult": 1850, "price": 440000000, "col": 8, "deep": True},
+    {"name": "虚無のピッケル", "mult": 5400, "price": 1900000000, "col": 2, "deep": True},
+    {"name": "原初のピッケル", "mult": 15700, "price": 5200000000, "col": 7, "deep": True},
 ]
 
 #   max は本編での上限、deep_max は深層で解放される上限。
@@ -582,11 +582,11 @@ BASE_MINING_RATE = 6.0     # 押しっぱなしのときの毎秒の振り回数
 RATE_PER_SPEED_LV = 2.0
 
 # 深層の最果て。全部買ってもまだ金が余るコレクター向け。効果は一切ない。
-# 揃えるとコンプリート称号がつく。
+# 画面には出ず、下部帯にバッジとして並ぶだけ。3つ揃えるとコンプリート称号。
 TRINKETS = [
-    ("dog", "むだ犬", "ただ付いてくるだけ", 1_000_000_000),
-    ("bird", "むだ鳥", "ほんとに付いてくるだけ", 3_000_000_000),
-    ("statue", "自分の像", "坑道の入口に飾られる（見えない）", 8_000_000_000),
+    ("sai", "採バッチ", "金メッキ。ただの飾り", 6_000_000_000),
+    ("kutsu", "掘バッチ", "同上。並ぶと少し嬉しい", 6_000_000_000),
+    ("maboroshi", "幻バッチ", "本物の幻鉱でできている（らしい）", 6_000_000_000),
 ]
 
 
@@ -671,6 +671,9 @@ class Ore:
             self.gold = fl["ph_gold"]
             self.col, self.dark, self.r = 8, 2, PHANTOM_R
             self.lifetime = random.randint(PHANTOM_LIFETIME_MIN, PHANTOM_LIFETIME_MAX)
+            # 最深部の主だけは、長期戦になるので居座り時間を延ばす。
+            if floor_index == len(FLOORS) - 1:
+                self.lifetime = int(self.lifetime * 2.2)
         else:
             t = ORE_TYPES[kind]
             self.name = t["name"]
@@ -1685,7 +1688,7 @@ class App:
         # 掘進 Lv0（本編）は 9px のまま。深層で伸ばすと円が広がるが、
         # 最大でも画面の 1/4 を囲むくらい（半径 ~63px）で止める。
         # それ以上だと画面外にサークルが出て「掘ってる感」が消える。
-        return MINE_REACH + int(self.player.upgrades["reach"] * 3.6)
+        return MINE_REACH + int(self.player.upgrades["reach"] * 1.8)
 
     def find_target(self):
         best, best_d = None, 1e9
@@ -2230,7 +2233,6 @@ class App:
             o.draw(targeted=(o is target))
         if self.cat is not None:
             self.cat.draw()
-        self.draw_trinkets()
         self.player.draw()
         for q in self.pests:
             q.draw()
@@ -2244,30 +2246,19 @@ class App:
         pyxel.line(0, FIELD_TOP - 1, SCREEN_W, FIELD_TOP - 1, 5)
         pyxel.line(0, FIELD_BOTTOM, SCREEN_W, FIELD_BOTTOM, 5)
 
-    def draw_trinkets(self):
-        """買ったコレクションが列になって付いてくる。ゲーム的な効果はない。"""
+    def draw_badges(self):
+        """買ったコレクションを下部帯にバッジとして並べる。効果はない。体力表示の左。"""
         if not self.trinkets:
             return
-        p = self.player
-        f = -p.face
-        for i, spec in enumerate(TRINKETS):
-            key = spec[0]
-            if key not in self.trinkets:
+        chars = {"sai": "採", "kutsu": "掘", "maboroshi": "幻"}
+        x = SCREEN_W - 4 - self.player.max_hp * 7 - 8
+        for spec in reversed(TRINKETS):
+            if spec[0] not in self.trinkets:
                 continue
-            wob = math.sin(pyxel.frame_count * 0.15 + i) * 2
-            tx = int(p.x + f * (18 + i * 11))
-            ty = int(p.y + 4 + wob)
-            if key == "dog":
-                pyxel.rect(tx - 3, ty - 2, 6, 4, 4)
-                pyxel.rect(tx + f * 3, ty - 3, 3, 3, 4)
-                pyxel.pset(tx - f * 4, ty - 2, 4)          # しっぽ
-            elif key == "bird":
-                pyxel.rect(tx - 2, ty - 2 - 3, 4, 3, 12)
-                pyxel.tri(tx - 3, ty - 4, tx + 3, ty - 4,
-                          tx, ty - 4 - 2 + int(wob), 12)   # 羽ばたき
-            elif key == "statue":
-                pyxel.rect(tx - 2, ty - 5, 4, 6, 6)
-                pyxel.pset(tx, ty - 6, 6)
+            x -= 13
+            pyxel.rect(x, ROW_HINT, 12, 12, 4)
+            pyxel.rectb(x, ROW_HINT, 12, 12, 10)
+            text(x + 1, ROW_HINT + 1, chars[spec[0]], 10)
 
     def draw_ladder(self, x, y):
         pyxel.rect(x - 8, y - 13, 16, 26, 0)
@@ -2355,6 +2346,8 @@ class App:
         # 体力。階層を降りるたび全快するので、ここが尽きるのは「同じ階で3回やられた」とき。
         for i in range(p.max_hp):
             self.draw_heart(SCREEN_W - 4 - (p.max_hp - i) * 7, ROW_HINT + 2, i < p.hp)
+
+        self.draw_badges()
 
     @staticmethod
     def draw_heart(x, y, filled):
