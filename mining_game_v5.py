@@ -581,6 +581,14 @@ UPGRADES = [
 BASE_MINING_RATE = 6.0     # 押しっぱなしのときの毎秒の振り回数
 RATE_PER_SPEED_LV = 2.0
 
+# --- やりこみのご褒美 ---------------------------------------------------------
+#   バッジを3つ揃えると経験値10倍。そこからレベル上限まで一気に駆け上がれる。
+#   B10で最大装備なら、850個ほど砕けば Lv999 に届く（2〜3分）。
+#   「もう買うものがない」状態に、最後の目標をもう一段だけ足すための仕掛け。
+MAX_LEVEL = 999
+COMPLETE_EXP_MULT = 10
+FANFARE_TIME = 4 * FPS     # お祝いの表示時間
+
 # 深層の最果て。全部買ってもまだ金が余るコレクター向け。効果は一切ない。
 # 画面には出ず、下部帯にバッジとして並ぶだけ。3つ揃えるとコンプリート称号。
 TRINKETS = [
@@ -1144,12 +1152,18 @@ class Player:
         return dmg * self.mining_rate
 
     def gain_exp(self, amount):
+        if self.level >= MAX_LEVEL:
+            self.exp = 0
+            return 0
         self.exp += amount
         levels = 0
         while self.exp >= self.exp_to_next:
             self.exp -= self.exp_to_next
             self.level += 1
             levels += 1
+            if self.level >= MAX_LEVEL:
+                self.exp = 0
+                break
         return levels
 
     def move(self):
@@ -1246,8 +1260,12 @@ class App:
         self.pest_timer = 0
         self.cat = None
         self.cat_bell = False
-        self.trinkets = set()       # 買ったコレクション（ただ付いてくるだけ）
-        self.completed = False
+        self.trinkets = set()       # 買ったバッジ
+        self.completed = False      # バッジ3種そろえた（以降 経験値10倍）
+        self.maxed = False          # レベル上限に到達した
+        self.fanfare = 0            # お祝い表示の残りフレーム
+        self.fanfare_lines = ()
+        self.fanfare_col = 10
         self.particles = []
         self.popups = []
         self.ladder = None
@@ -1343,6 +1361,8 @@ class App:
         elif self.state == ST_CLEAR:
             self.update_clear()
 
+        if self.fanfare > 0:
+            self.fanfare -= 1
         self.particles = [p for p in self.particles if p.update()]
         self.popups = [p for p in self.popups if p.update()]
         if self.shake > 0.0:
@@ -1781,7 +1801,7 @@ class App:
         p.gold += gold
         before_steps = p.mined_steps
         p.total_mined += 1
-        levels = p.gain_exp(ore.exp)
+        levels = p.gain_exp(ore.exp * self.exp_mult)
         self.popups.append(Popup(ore.x, ore.y - 10, f"+{fmt(gold)}", 10))
 
         if p.mined_steps > before_steps:
@@ -1796,6 +1816,7 @@ class App:
             self.set_message(f"レベルアップ！  Lv.{p.level}", 11)
             for _ in range(14):
                 self.particles.append(Particle(p.x, p.y, 11, speed=2.6, life=24))
+            self.check_max_level()
 
     def on_phantom_break(self, ore):
         p = self.player
@@ -1803,7 +1824,7 @@ class App:
         if self.floor_index == NORMAL_LAST:
             # 本編クリア。ランクとタイムをここで確定させ、以後は動かさない。
             p.gold += int(ore.gold * p.gold_mult)
-            p.gain_exp(ore.exp)
+            p.gain_exp(ore.exp * self.exp_mult)
             pyxel.stop()
             pyxel.play(1, 7)
             self.rank = self.judge_rank()
@@ -1823,7 +1844,7 @@ class App:
         self.phantom_cooldown = self.phantom_wait()
         gold = int(ore.gold * p.gold_mult * rate)
         p.gold += gold
-        p.gain_exp(int(ore.exp * rate))
+        p.gain_exp(int(ore.exp * rate) * self.exp_mult)
         self.popups.append(Popup(ore.x, ore.y - 14, f"+{fmt(gold)}", 10, crit=True))
 
         last = self.floor_index == len(FLOORS) - 1
@@ -2090,22 +2111,45 @@ class App:
         if item["type"] in ("pickaxe", "upgrade", "bell"):
             self.check_completion()
 
+    def celebrate(self, lines, col=10, burst=90):
+        """画面いっぱいのお祝い。バッジ達成とレベル上限で共用する。"""
+        self.fanfare = FANFARE_TIME
+        self.fanfare_lines = lines
+        self.fanfare_col = col
+        self.add_shake(SHAKE_PHANTOM)
+        pyxel.play(1, 3)
+        p = self.player
+        for i in range(burst):
+            self.particles.append(
+                Particle(p.x, p.y, (10, 7, 14, 11)[i % 4], speed=4.2, life=40, size=2))
+
+    @property
+    def exp_mult(self):
+        """バッジを揃えたあとは経験値10倍。レベル上限までの最後の追い込み。"""
+        return COMPLETE_EXP_MULT if self.completed else 1
+
     def check_completion(self):
-        """深層の店の品を全部買い切ったか。買い切ると称号がつく。"""
+        """深層の店の品を全部買い切ったか。揃えると経験値10倍のご褒美。"""
         if self.completed:
             return
         p = self.player
-        # 深層の店に並ぶ全部（深層ピッケル4本＋強化カンスト＋ネコ＋鈴＋コレクション）
+        # 深層の店に並ぶ全部（深層ピッケル4本＋強化カンスト＋ネコ＋鈴＋バッジ3種）
         all_pick = all(i in p.owned for i in range(6, len(PICKAXES)))
         all_up = all(p.upgrades[u["key"]] >= u.get("deep_max", u["max"]) for u in UPGRADES)
         all_trink = len(self.trinkets) >= len(TRINKETS)
         if all_pick and all_up and self.cat is not None and self.cat_bell and all_trink:
             self.completed = True
-            self.set_message("すべて手に入れた。コンプリート！", 10)
-            self.add_shake(SHAKE_PHANTOM)
-            for _ in range(60):
-                self.particles.append(
-                    Particle(p.x, p.y, 10 if _ % 2 else 7, speed=3.4, life=34))
+            self.celebrate(("バッジ ３つ そろった！",
+                            f"ここから 経験値 {COMPLETE_EXP_MULT}倍！",
+                            f"めざせ レベル {MAX_LEVEL}"), col=10)
+
+    def check_max_level(self):
+        if self.maxed or self.player.level < MAX_LEVEL:
+            return
+        self.maxed = True
+        self.celebrate((f"レベル {MAX_LEVEL} 到達！",
+                        "もう これ以上 強くなれない",
+                        "完全制覇！"), col=7, burst=140)
 
     def update_clear(self):
         self.clear_frames += 1
@@ -2183,6 +2227,8 @@ class App:
         self.draw_bottom_bar()
         if self.state == ST_SHOP:
             self.draw_shop()
+        if self.fanfare > 0:
+            self.draw_fanfare()
 
     # --- 盤面 ---------------------------------------------------------------
     def draw_field(self):
@@ -2248,19 +2294,46 @@ class App:
         pyxel.line(0, FIELD_BOTTOM, SCREEN_W, FIELD_BOTTOM, 5)
 
     def draw_badges(self):
-        """買ったコレクションを盤面の右上に小さな徽章として飾る。効果はない。"""
-        if not self.trinkets:
+        """バッジ棚を盤面の右上に出す。空き枠も見せて、あと何個かを分からせる。
+        深層に入って初めて現れる。3つ揃うと枠が金色に脈打つ。"""
+        if not self.in_deep:
             return
         cols = {"sai": 10, "kutsu": 12, "maboroshi": 14}
-        bx = SCREEN_W - 5
-        for spec in TRINKETS:
-            if spec[0] not in self.trinkets:
-                continue
-            bx -= 9
-            c = cols[spec[0]]
-            pyxel.circ(bx, FIELD_TOP + 6, 3, 1)
-            pyxel.circ(bx, FIELD_TOP + 6, 2, c)
-            pyxel.pset(bx - 1, FIELD_TOP + 5, 7)
+        n = len(TRINKETS)
+        w, gap = 15, 3
+        total = n * w + (n - 1) * gap
+        x0 = SCREEN_W - 5 - total
+        y0 = FIELD_TOP + 4
+        glow = self.completed and (pyxel.frame_count // 6) % 2 == 0
+        pyxel.rect(x0 - 3, y0 - 3, total + 6, w + 6, 0)
+        pyxel.rectb(x0 - 3, y0 - 3, total + 6, w + 6, 10 if glow else 5)
+        for i, spec in enumerate(TRINKETS):
+            bx = x0 + i * (w + gap)
+            cy = y0 + w // 2
+            got = spec[0] in self.trinkets
+            pyxel.rectb(bx, y0, w, w, 10 if got else 5)
+            if got:
+                c = cols[spec[0]]
+                pyxel.circ(bx + w // 2, cy, 4, 1)
+                pyxel.circ(bx + w // 2, cy, 3, c)
+                pyxel.pset(bx + w // 2 - 1, cy - 1, 7)
+                pyxel.pset(bx + w // 2, cy - 2, 7)
+            else:
+                pyxel.pset(bx + w // 2, cy, 5)
+
+    def draw_fanfare(self):
+        """やりこみ達成のお祝い。画面の真ん中に大きく出して数秒で消える。"""
+        t = FANFARE_TIME - self.fanfare
+        h = len(self.fanfare_lines) * 20 + 22
+        top = (SCREEN_H - h) // 2
+        pyxel.rect(0, top, SCREEN_W, h, 0)
+        c = self.fanfare_col if (pyxel.frame_count // 4) % 2 == 0 else 7
+        pyxel.rectb(2, top + 2, SCREEN_W - 4, h - 4, c)
+        for i, line in enumerate(self.fanfare_lines):
+            if t < 6 + i * 8:            # 一行ずつ立ち上げる
+                break
+            col = c if i == 0 else 7
+            text_center_shadow(SCREEN_W // 2, top + 14 + i * 20, line, col)
 
     def draw_ladder(self, x, y):
         pyxel.rect(x - 8, y - 13, 16, 26, 0)
@@ -2302,12 +2375,22 @@ class App:
             text((left_end + right_start) // 2 - text_w(status) // 2, 2, status, scol)
 
         # 2段目: レベル+EXP / 攻撃力 / ピッケル
-        lv_s = f"Lv.{p.level}"
-        text(3, 16, lv_s, 7)
+        maxed = p.level >= MAX_LEVEL
+        lv_s = f"Lv.{p.level}" + (" MAX" if maxed else "")
+        text(3, 16, lv_s, 10 if maxed else 7)
         bx = 6 + text_w(lv_s)
         pyxel.rect(bx, 20, 30, 4, 1)
-        pyxel.rect(bx, 20, int(30 * (p.exp / p.exp_to_next)), 4, 11)
-        text(bx + 36, 16, f"攻撃 {fmt(p.attack_damage(False))}", 7)
+        if maxed:
+            pyxel.rect(bx, 20, 30, 4, 10)
+        else:
+            pyxel.rect(bx, 20, int(30 * (p.exp / p.exp_to_next)), 4, 11)
+        atk_x = bx + 36
+        if self.completed and not maxed:
+            # 経験値10倍が効いているあいだの目印
+            mark = f"x{COMPLETE_EXP_MULT}"
+            text(bx + 33, 16, mark, 10 if (pyxel.frame_count // 8) % 2 == 0 else 14)
+            atk_x = bx + 36 + text_w(mark)
+        text(atk_x, 16, f"攻撃 {fmt(p.attack_damage(False))}", 7)
         pick = PICKAXES[p.pickaxe]
         text_r(SCREEN_W - 3, 16, pick["name"], pick["col"])
 
@@ -2490,7 +2573,10 @@ class App:
             head1, head2 = "坑道の底まで", "掘りきった！"
             sub = "こんな大金、使いきれるわけがない！"
         if self.completed:
-            sub = "ぜんぶ買った ―― コンプリート！"
+            sub = "バッジ３つ ―― コンプリート！"
+        if self.maxed:
+            mark, title = "★", "完全制覇"
+            sub = f"Lv{MAX_LEVEL} ＆ バッジ３つ ―― 完全制覇！"
 
         if t >= cue["title1"]:
             text_big(SCREEN_W // 2, 12, head1, col, scale=2)
@@ -2527,11 +2613,12 @@ class App:
                 if (pyxel.frame_count // 15) % 2 == 0:
                     text_center(SCREEN_W // 2, 202, "[Z] さいごまで見る", 11)
             elif can_deep:
+                text_center(SCREEN_W // 2, 194, "Aランク達成！ ボーナスステージ解放！", 10)
                 if (pyxel.frame_count // 15) % 2 == 0:
-                    text_center(SCREEN_W // 2, 202, "[Z] ……坑道の底から、音がする", 11)
+                    text_center(SCREEN_W // 2, 210, "[Z] さらに下へ潜る", 11)
             else:
-                text_center(SCREEN_W // 2, 196, f"{DEEP_GATE_SEC // 60}分以内に砕いたとき、", 13)
-                text_center(SCREEN_W // 2, 210, "この坑道の本当の姿が見えるという。", 13)
+                text_center(SCREEN_W // 2, 194, f"{DEEP_GATE_SEC // 60}分以内にクリアすると", 13)
+                text_center(SCREEN_W // 2, 208, "ボーナスステージが開くらしい。", 13)
 
         if t >= cue["prompt"]:
             text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 6)
@@ -2550,27 +2637,29 @@ class App:
                 "いちばん下まで掘ると、",
                 "そこは幻の鉱石だらけだった。",
                 "",
-                "もう どれが本物か",
-                "わからないくらいに。",
-                "",
-                "大きな袋に幻の鉱石を詰めこんで、",
+                "大きな袋に詰めこんで、",
                 "鼻歌まじりで地上へのぼった。",
                 "",
                 "町じゅうの子どもに",
                 "お菓子をおごってやった。",
             ]
+            if self.completed:
+                lines += ["", "バッジ３つ、たしかに持って帰った。"]
+            if self.maxed:
+                lines += [f"Lv{MAX_LEVEL}。もう掘るものが なくなった。"]
         else:
-            text_center(SCREEN_W // 2, 22, "―― 真エンディング ――", 8)
+            text_center(SCREEN_W // 2, 22, "―― ボーナスステージ ――", 10)
             lines = [
-                "地上へ戻ろうとした、そのとき。",
-                "",
-                "幻の鉱石があった場所の奥から",
+                "帰ろうとしたら、足もとの岩から",
                 "青白い光が漏れていた。",
                 "",
-                "岩を砕くと 見たこともない",
-                "鉱石が埋まっていた。",
-                "しかも岩壁の向こうまで",
-                "どこまでも続いている。",
+                "砕いてみると、下にもっと",
+                "すごい鉱石が埋まっている。",
+                "",
+                "B6F から B10F まで、",
+                "掘りたい放題のごほうびフロア！",
+                "",
+                "気がすむまで ほりほりしよう。",
                 "",
                 "つるはしを握り直した。",
             ]
