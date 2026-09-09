@@ -2243,22 +2243,24 @@ class App:
 
         pyxel.camera()
         pyxel.clip()
+        self.draw_badges()
         pyxel.line(0, FIELD_TOP - 1, SCREEN_W, FIELD_TOP - 1, 5)
         pyxel.line(0, FIELD_BOTTOM, SCREEN_W, FIELD_BOTTOM, 5)
 
     def draw_badges(self):
-        """買ったコレクションを下部帯にバッジとして並べる。効果はない。体力表示の左。"""
+        """買ったコレクションを盤面の右上に小さな徽章として飾る。効果はない。"""
         if not self.trinkets:
             return
-        chars = {"sai": "採", "kutsu": "掘", "maboroshi": "幻"}
-        x = SCREEN_W - 4 - self.player.max_hp * 7 - 8
-        for spec in reversed(TRINKETS):
+        cols = {"sai": 10, "kutsu": 12, "maboroshi": 14}
+        bx = SCREEN_W - 5
+        for spec in TRINKETS:
             if spec[0] not in self.trinkets:
                 continue
-            x -= 13
-            pyxel.rect(x, ROW_HINT, 12, 12, 4)
-            pyxel.rectb(x, ROW_HINT, 12, 12, 10)
-            text(x + 1, ROW_HINT + 1, chars[spec[0]], 10)
+            bx -= 9
+            c = cols[spec[0]]
+            pyxel.circ(bx, FIELD_TOP + 6, 3, 1)
+            pyxel.circ(bx, FIELD_TOP + 6, 2, c)
+            pyxel.pset(bx - 1, FIELD_TOP + 5, 7)
 
     def draw_ladder(self, x, y):
         pyxel.rect(x - 8, y - 13, 16, 26, 0)
@@ -2346,8 +2348,6 @@ class App:
         # 体力。階層を降りるたび全快するので、ここが尽きるのは「同じ階で3回やられた」とき。
         for i in range(p.max_hp):
             self.draw_heart(SCREEN_W - 4 - (p.max_hp - i) * 7, ROW_HINT + 2, i < p.hp)
-
-        self.draw_badges()
 
     @staticmethod
     def draw_heart(x, y, filled):
@@ -2509,7 +2509,8 @@ class App:
             text_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
 
         rows = [
-            ("クリアタイム", mmss(self.clear_time or self.play_frames)),
+            ("クリアタイム" if not self.deep_end else "総プレイ時間",
+             mmss(self.play_frames if self.deep_end else (self.clear_time or self.play_frames))),
             ("最終レベル", f"Lv.{p.level}"),
             ("最終ピッケル", PICKAXES[p.pickaxe]["name"]),
             ("掘った鉱石", f"{p.total_mined} 個"),
