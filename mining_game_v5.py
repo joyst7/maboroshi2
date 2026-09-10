@@ -2471,7 +2471,8 @@ class App:
             if p.potions > 0 and 4 + text_w(s) + 8 <= SCREEN_W - 4 - text_w(held):
                 text_r(SCREEN_W - 4, ROW_INFO, held, 10)
 
-        text(4, ROW_HINT, "[Z]ほる [S]みせ [C]くすり [X]はしご", 5)
+        self.draw_key_hints(4, ROW_HINT,
+                            (("[Z]", "ほる"), ("[S]", "みせ"), ("[C]", "くすり"), ("[X]", "はしご")))
         if TUNING:
             text_r(SCREEN_W - 4 - p.max_hp * 7 - 6, ROW_HINT,
                    f"[1-5]コウモリ:{PEST_PRESETS[PEST_LEVEL][0]}", 14)
@@ -2482,6 +2483,16 @@ class App:
         # 体力。階層を降りるたび全快するので、ここが尽きるのは「同じ階で3回やられた」とき。
         for i in range(p.max_hp):
             self.draw_heart(SCREEN_W - 4 - (p.max_hp - i) * 7, ROW_HINT + 2, i < p.hp)
+
+    @staticmethod
+    def draw_key_hints(x, y, pairs):
+        """[キー]ことば の並びを見やすくする。キーだけ明るい色にして、
+        単色で並べるより「区切り」が目でわかるようにする。組の間も少し広めに開ける。"""
+        for key, action in pairs:
+            text(x, y, key, 10)
+            x += text_w(key) + 2
+            text(x, y, action, 6)
+            x += text_w(action) + 7
 
     @staticmethod
     def draw_heart(x, y, filled):
