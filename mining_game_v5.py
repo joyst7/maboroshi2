@@ -2486,19 +2486,17 @@ class App:
 
     @staticmethod
     def draw_key_hints(x, y, pairs):
-        """[Zほる] のように、キーとことばをまとめて角カッコで「囲む」。
-        キーだけ離して並べると、その言葉がどちらのキーに属すか一瞬で
-        わからない（[Z]ほる [S]みせ だと「ほる」がZ側かS側か迷う）。
-        カッコで囲めば、隙間を大きく取らなくても一塊だと分かる。"""
+        """Z→ほる のように、キーとことばを矢印でつなぐ。
+        「Zほる」だと1つの単語に見えて読めてしまうが、矢印を挟めば
+        「Zを押すとほる」という向きが一目で伝わる。角カッコは幅を食うので
+        外し、浮いた分は組どうしの間隔にまわして境目をさらに分かりやすくした。"""
         for key, action in pairs:
-            text(x, y, "[", 6)
-            x += text_w("[")
             text(x, y, key, 10)
             x += text_w(key)
+            text(x, y, "→", 6)
+            x += text_w("→")
             text(x, y, action, 6)
-            x += text_w(action)
-            text(x, y, "]", 6)
-            x += text_w("]") + 6
+            x += text_w(action) + 10
 
     @staticmethod
     def draw_heart(x, y, filled):
