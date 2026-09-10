@@ -383,20 +383,42 @@ def text_big(cx, y, s, col, scale=3):
     pyxel.blt(cx - img.width * scale // 2, y, img, 0, 0, img.width, img.height, 0, scale=scale)
 
 
-def fmt(n):
+def _fmt_scaled(n, div):
+    """深層の終盤は兆の桁にも届く。長い数字はテロップに収まらないので桁ごとに丸める。
+    div は丸め方向（floor か ceil）を渡す。"""
     n = int(n)
-    # 深層の終盤は兆の桁にも届く。長い数字はテロップに収まらないので桁ごとに丸める。
     if n >= 1000000000000:
-        return f"{n / 1000000000000:.2f}兆"
+        v = div(n, 10000000000)          # 兆の百分の一単位
+        return f"{v // 100}.{v % 100:02d}兆"
     if n >= 10000000000:
-        return f"{n // 100000000:,}億"
+        return f"{div(n, 100000000):,}億"
     if n >= 100000000:
-        return f"{n / 100000000:.1f}億"
+        v = div(n, 10000000)             # 億の十分の一単位
+        return f"{v // 10}.{v % 10}億"
     if n >= 10000000:
-        return f"{n // 10000:,}万"
+        return f"{div(n, 10000):,}万"
     if n >= 10000:
-        return f"{n / 10000:.1f}万"
+        v = div(n, 1000)                 # 万の十分の一単位
+        return f"{v // 10}.{v % 10}万"
     return f"{n:,}"
+
+
+def _ceildiv(a, b):
+    return -(-a // b)
+
+
+def fmt(n):
+    """いま持っている量（所持金・獲得量）の表示。切り捨てる＝実際より多くは見せない。"""
+    return _fmt_scaled(n, lambda a, b: a // b)
+
+
+def fmt_ceil(n):
+    """これだけ要る量（値段）の表示。切り上げる＝実際より安くは見せない。
+    fmt(所持金) と fmt_ceil(値段) が同じ数字に見えたら、必ず本当に買える額に達している。
+    以前は両方 fmt() の四捨五入で表示していたため、「所持金も値段も画面では
+    同じ4.0億なのに買えない」という事故が起きていた（実際の値段が
+    4億100万などで、四捨五入だけ同じ表示になっていたため）。"""
+    return _fmt_scaled(n, _ceildiv)
 
 
 def mmss(frames):
@@ -2560,7 +2582,7 @@ class App:
             if sold:
                 text_r(x0 + w - 6, y, "---", 5)
             else:
-                text_r(x0 + w - 6, y, fmt(it["price"]), 10 if afford else 8)
+                text_r(x0 + w - 6, y, fmt_ceil(it["price"]), 10 if afford else 8)
             y += row_h
 
         # 画面外にまだ品物があることを、点滅する三角で知らせる
