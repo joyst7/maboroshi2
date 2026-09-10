@@ -1262,7 +1262,6 @@ class App:
         self.cat_bell = False
         self.trinkets = set()       # 買ったバッジ
         self.completed = False      # バッジ3種そろえた（以降 経験値10倍）
-        self.flash = 0             # クリア突入やボス撃破の白フラッシュ
         self.maxed = False          # レベル上限に到達した
         self.fanfare = 0            # お祝い表示の残りフレーム
         self.fanfare_lines = ()
@@ -1364,8 +1363,6 @@ class App:
 
         if self.fanfare > 0:
             self.fanfare -= 1
-        if self.flash > 0:
-            self.flash -= 1
         self.particles = [p for p in self.particles if p.update()]
         self.popups = [p for p in self.popups if p.update()]
         if self.shake > 0.0:
@@ -1843,8 +1840,7 @@ class App:
 
         last = self.floor_index == len(FLOORS) - 1
         if last and first:
-            # 最深部の主。これで最後だと分かるように大きく光って砕ける。
-            self.flash = 18
+            # 最深部の主。これで最後だと分かるように盛大に砕ける。
             self.add_shake(SHAKE_PHANTOM * 2)
             pyxel.play(1, 7)
             for i in range(160):
@@ -1880,7 +1876,6 @@ class App:
         self.deep_end = deep
         self.clear_page = 0
         self.clear_frames = 0
-        self.flash = 20
         self.state = ST_CLEAR
         if self.bgm_on:
             pyxel.playm(1, loop=True)
@@ -2238,12 +2233,6 @@ class App:
         self.draw_bottom_bar()
         if self.state == ST_SHOP:
             self.draw_shop()
-        if self.flash > 0:
-            pyxel.rectb(0, 0, SCREEN_W, SCREEN_H, 7)
-            if self.flash > 10:
-                pyxel.dither(0.4)
-                pyxel.rect(0, 0, SCREEN_W, SCREEN_H, 7)
-                pyxel.dither(1.0)
         if self.fanfare > 0:
             self.draw_fanfare()
 
@@ -2574,9 +2563,6 @@ class App:
         t = self.clear_frames
         cue = self.CLEAR_CUE
         pyxel.cls(0)
-        if self.flash > 0:
-            pyxel.cls(7 if self.flash > 12 else 10)
-            return
         for i in range(80):
             a = i * 0.7 + pyxel.frame_count * 0.04
             d = (pyxel.frame_count * 1.6 + i * 13) % 200
@@ -2603,9 +2589,9 @@ class App:
         if t >= cue["title2"]:
             text_big(SCREEN_W // 2, 12 + big_h, head2, col, scale=2)
         if t >= cue["sub"]:
-            text_center(SCREEN_W // 2, 76, sub, 6)
+            text_center(SCREEN_W // 2, 70, sub, 6)
 
-        box_y, box_h = 92, big_h + 4
+        box_y, box_h = 84, big_h + 4
         if t >= cue["box"]:
             pyxel.rect(28, box_y, SCREEN_W - 56, box_h, 1)
             pyxel.rectb(28, box_y, SCREEN_W - 56, box_h, 10)
@@ -2623,32 +2609,33 @@ class App:
         ]
         if self.deep_end:
             rows.append(("集めたバッジ", f"{len(self.trinkets)} / {len(TRINKETS)} 個"))
+        rows_top = box_y + box_h + 8
         for i, (k, v) in enumerate(rows):
             if t < cue["rows"] + i * 10:
                 break
-            y = box_y + box_h + 10 + i * 14
+            y = rows_top + i * 13
             text(34, y, k, 6)
             text(140, y, v, 7)
+        hy = rows_top + len(rows) * 13 + 4
 
         if t >= cue["hint"]:
+            blink = (pyxel.frame_count // 15) % 2 == 0
             if self.deep_end and not self.completed:
-                text_center(SCREEN_W // 2, 190, "店でバッジ３つ集めると", 13)
-                text_center(SCREEN_W // 2, 202, "その先のやりこみが開く", 13)
-                if (pyxel.frame_count // 15) % 2 == 0:
-                    text_center(SCREEN_W // 2, 216, "[Z] さいごまで見る", 11)
+                text_center(SCREEN_W // 2, hy, "バッジを３つ集めるとやりこみ解放", 13)
+                if blink:
+                    text_center(SCREEN_W // 2, hy + 13, "[Z] さいごまで見る", 11)
             elif self.deep_end:
-                if (pyxel.frame_count // 15) % 2 == 0:
-                    text_center(SCREEN_W // 2, 202, "[Z] さいごまで見る", 11)
+                if blink:
+                    text_center(SCREEN_W // 2, hy + 4, "[Z] さいごまで見る", 11)
             elif can_deep:
-                text_center(SCREEN_W // 2, 194, "Aランク達成！ ボーナスステージ解放！", 10)
-                if (pyxel.frame_count // 15) % 2 == 0:
-                    text_center(SCREEN_W // 2, 210, "[Z] さらに下へ潜る", 11)
+                text_center(SCREEN_W // 2, hy, "Aランク！ ボーナスステージ解放", 10)
+                if blink:
+                    text_center(SCREEN_W // 2, hy + 13, "[Z] さらに下へ潜る", 11)
             else:
-                text_center(SCREEN_W // 2, 194, f"{DEEP_GATE_SEC // 60}分以内にクリアすると", 13)
-                text_center(SCREEN_W // 2, 208, "ボーナスステージが開くらしい。", 13)
+                text_center(SCREEN_W // 2, hy, f"{DEEP_GATE_SEC // 60}分以内でボーナス解放", 13)
 
         if t >= cue["prompt"]:
-            text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 6)
+            text_center(SCREEN_W // 2, 234, "[R] もう一度掘る", 6)
 
     def draw_true_end(self):
         pyxel.cls(0)
