@@ -1,6 +1,6 @@
 # ブラウザで遊ぶ版
 
-リポジトリ直下の `index.html` は `mining_game_v5.py` と `maboroshi.pyxres` を丸ごと埋め込んだ
+リポジトリ直下の `index.html` は `maboroshi.py` と `maboroshi.pyxres` を丸ごと埋め込んだ
 1ファイル完結の HTML。開けばブラウザで遊べる。
 
 ## 作り直しかた
@@ -9,15 +9,15 @@
 
 ```sh
 mkdir -p /tmp/build/maboroshi
-cp mining_game_v5.py maboroshi.pyxres /tmp/build/maboroshi/
+cp maboroshi.py maboroshi.pyxres /tmp/build/maboroshi/
 cd /tmp/build
-pyxel package maboroshi maboroshi/mining_game_v5.py
+pyxel package maboroshi maboroshi/maboroshi.py
 pyxel app2html maboroshi.pyxapp
 cp maboroshi.html <このリポジトリ>/index.html
 ```
 
-リポジトリのフォルダをそのまま `pyxel package` に渡すと docs/ の画像まで
-巻き込んで4倍のサイズになるので、必要な2ファイルだけを別の場所に置いて作る。
+リポジトリのフォルダをそのまま `pyxel package` に渡すと docs/ や .git まで
+巻き込んで無駄に大きくなるので、必要な2ファイルだけを別の場所に置いて作る。
 
 ## 置き場所
 
