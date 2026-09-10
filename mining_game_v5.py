@@ -93,6 +93,11 @@ DMG_ACC_LIFE = 24              # まとめて表示のときの表示継続フ�
 
 CHEAT_CODE = "UUDDRLRLBA"
 CHEAT_GOLD = 3000000
+# テスト用。B/Cランク画面を見るのに実際に12分以上待つのが辛いので、
+# 時間を5分ずつ進める裏技を別に用意する。ゴールドのコードとは逆順にして
+# 誤発動しないようにした。本編のランク判定(play_frames)にだけ効く。
+CHEAT_CODE2 = "DDUURLRLAB"
+CHEAT_TIME_SKIP = 5 * 60 * FPS
 CHEAT_KEYS = {
     "U": pyxel.KEY_UP, "D": pyxel.KEY_DOWN,
     "L": pyxel.KEY_LEFT, "R": pyxel.KEY_RIGHT,
@@ -1262,6 +1267,8 @@ class App:
         self.cat_bell = False
         self.trinkets = set()       # 買ったバッジ
         self.completed = False      # バッジ3種そろえた（以降 経験値10倍）
+        self.finale = 0             # 最深部ボス撃破の演出カウンタ
+        self.finale_pos = (0.0, 0.0)
         self.maxed = False          # レベル上限に到達した
         self.fanfare = 0            # お祝い表示の残りフレーム
         self.fanfare_lines = ()
@@ -1279,6 +1286,7 @@ class App:
         self.shop_cursor = 0
         self.shop_scroll = 0
         self.cheat_pos = 0
+        self.cheat_pos2 = 0
         self.play_frames = 0
         self.clear_page = 0
         self.clear_frames = 0
@@ -1363,6 +1371,18 @@ class App:
 
         if self.fanfare > 0:
             self.fanfare -= 1
+        if self.finale > 0:
+            self.finale -= 1
+            # 一発で終わらせず、間を置いて2回追い打ちの爆発を重ねる。
+            # 「まだ続く」→「これで本当に終わり」の間ができる。
+            if self.finale in (48, 24):
+                x, y = self.finale_pos
+                self.add_shake(SHAKE_PHANTOM * 1.4)
+                pyxel.play(1, 6 if self.finale == 48 else 5)
+                for i in range(70):
+                    self.particles.append(
+                        Particle(x, y, (7, 10, 14, 11)[i % 4],
+                                 speed=4.5, life=42, size=2))
         self.particles = [p for p in self.particles if p.update()]
         self.popups = [p for p in self.popups if p.update()]
         if self.shake > 0.0:
@@ -1460,6 +1480,15 @@ class App:
         else:
             # 押し間違えたら最初から。ただし1文字目と同じキーなら、そこから数え直す。
             self.cheat_pos = 1 if pressed == CHEAT_CODE[0] else 0
+
+        if pressed == CHEAT_CODE2[self.cheat_pos2]:
+            self.cheat_pos2 += 1
+            if self.cheat_pos2 >= len(CHEAT_CODE2):
+                self.cheat_pos2 = 0
+                self.play_frames += CHEAT_TIME_SKIP
+                self.set_message(f"時間を{CHEAT_TIME_SKIP // FPS // 60}分進めた（テスト用）", 14)
+        else:
+            self.cheat_pos2 = 1 if pressed == CHEAT_CODE2[0] else 0
 
     # --- 邪魔者 -------------------------------------------------------------
     def update_pests(self):
@@ -1840,13 +1869,16 @@ class App:
 
         last = self.floor_index == len(FLOORS) - 1
         if last and first:
-            # 最深部の主。これで最後だと分かるように盛大に砕ける。
+            # 最深部の主。一発の爆発で終わらせず、連鎖する衝撃波にして
+            # 「これで最後を砕いた」と分かる間を作る（update/draw_finaleが続きを担う）。
+            self.finale = 70
+            self.finale_pos = (ore.x, ore.y)
             self.add_shake(SHAKE_PHANTOM * 2)
             pyxel.play(1, 7)
-            for i in range(160):
+            for i in range(90):
                 self.particles.append(
                     Particle(ore.x, ore.y, (7, 10, 14, 12)[i % 4],
-                             speed=5.5, life=48, size=3 if i % 3 else 2))
+                             speed=5.5, life=50, size=3 if i % 3 else 2))
         if first:
             self.spawn_ladder(ore.x, ore.y)
             if last:
@@ -2233,6 +2265,8 @@ class App:
         self.draw_bottom_bar()
         if self.state == ST_SHOP:
             self.draw_shop()
+        if self.finale > 0:
+            self.draw_finale_banner()
         if self.fanfare > 0:
             self.draw_fanfare()
 
@@ -2279,6 +2313,9 @@ class App:
             rr = self.mine_reach
             col = 12 if pyxel.btn(pyxel.KEY_Z) else 1
             pyxel.circb(int(self.player.x), int(self.player.y), int(rr), col)
+
+        if self.finale > 0:
+            self.draw_finale_rings()
 
         target = self.find_target()
         for o in sorted(self.ores, key=lambda o: o.y):
@@ -2340,6 +2377,33 @@ class App:
                 break
             col = c if i == 0 else 7
             text_center_shadow(SCREEN_W // 2, top + 14 + i * 20, line, col)
+
+    def draw_finale_rings(self):
+        """最深部ボスの撃破。爆心地から輪が広がる衝撃波。全画面を塗らないので
+        フラッシュと違ってバグには見えない。盤面のクリップ内だけに描く。"""
+        x, y = self.finale_pos
+        t = 70 - self.finale
+        for k, start in enumerate((0, 22, 44)):
+            age = t - start
+            if 0 <= age < 26:
+                r = age * 4
+                col = (10, 7, 14)[k]
+                pyxel.circb(int(x), int(y), r, col)
+                if age < 20:
+                    pyxel.circb(int(x), int(y), max(0, r - 3), col)
+
+    def draw_finale_banner(self):
+        """「最後のボスを砕いた」と分かる大きな見出し。盤面の上に少し遅れて出る。"""
+        t = 70 - self.finale
+        if t < 16:
+            return
+        rise = min(1.0, (t - 16) / 10)
+        y = int(70 + (1 - rise) * 16)
+        h = 24
+        col = 10 if (pyxel.frame_count // 4) % 2 == 0 else 7
+        pyxel.rect(0, y, SCREEN_W, h, 1)
+        pyxel.rectb(0, y, SCREEN_W, h, col)
+        text_center_shadow(SCREEN_W // 2, y + 7, "最深部の主を撃破！！", col)
 
     def draw_ladder(self, x, y):
         pyxel.rect(x - 8, y - 13, 16, 26, 0)
