@@ -2472,7 +2472,7 @@ class App:
                 text_r(SCREEN_W - 4, ROW_INFO, held, 10)
 
         self.draw_key_hints(4, ROW_HINT,
-                            (("[Z]", "ほる"), ("[S]", "みせ"), ("[C]", "くすり"), ("[X]", "はしご")))
+                            (("Z", "ほる"), ("S", "みせ"), ("C", "くすり"), ("X", "はしご")))
         if TUNING:
             text_r(SCREEN_W - 4 - p.max_hp * 7 - 6, ROW_HINT,
                    f"[1-5]コウモリ:{PEST_PRESETS[PEST_LEVEL][0]}", 14)
@@ -2486,13 +2486,19 @@ class App:
 
     @staticmethod
     def draw_key_hints(x, y, pairs):
-        """[キー]ことば の並びを見やすくする。キーだけ明るい色にして、
-        単色で並べるより「区切り」が目でわかるようにする。組の間も少し広めに開ける。"""
+        """[Zほる] のように、キーとことばをまとめて角カッコで「囲む」。
+        キーだけ離して並べると、その言葉がどちらのキーに属すか一瞬で
+        わからない（[Z]ほる [S]みせ だと「ほる」がZ側かS側か迷う）。
+        カッコで囲めば、隙間を大きく取らなくても一塊だと分かる。"""
         for key, action in pairs:
+            text(x, y, "[", 6)
+            x += text_w("[")
             text(x, y, key, 10)
-            x += text_w(key) + 2
+            x += text_w(key)
             text(x, y, action, 6)
-            x += text_w(action) + 7
+            x += text_w(action)
+            text(x, y, "]", 6)
+            x += text_w("]") + 6
 
     @staticmethod
     def draw_heart(x, y, filled):
