@@ -93,11 +93,6 @@ DMG_ACC_LIFE = 24              # まとめて表示のときの表示継続フ�
 
 CHEAT_CODE = "UUDDRLRLBA"
 CHEAT_GOLD = 3000000
-# テスト用。B/Cランク画面を見るのに実際に12分以上待つのが辛いので、
-# 時間を5分ずつ進める裏技を別に用意する。ゴールドのコードとは逆順にして
-# 誤発動しないようにした。本編のランク判定(play_frames)にだけ効く。
-CHEAT_CODE2 = "DDUURLRLAB"
-CHEAT_TIME_SKIP = 5 * 60 * FPS
 CHEAT_KEYS = {
     "U": pyxel.KEY_UP, "D": pyxel.KEY_DOWN,
     "L": pyxel.KEY_LEFT, "R": pyxel.KEY_RIGHT,
@@ -1286,7 +1281,6 @@ class App:
         self.shop_cursor = 0
         self.shop_scroll = 0
         self.cheat_pos = 0
-        self.cheat_pos2 = 0
         self.play_frames = 0
         self.clear_page = 0
         self.clear_frames = 0
@@ -1480,15 +1474,6 @@ class App:
         else:
             # 押し間違えたら最初から。ただし1文字目と同じキーなら、そこから数え直す。
             self.cheat_pos = 1 if pressed == CHEAT_CODE[0] else 0
-
-        if pressed == CHEAT_CODE2[self.cheat_pos2]:
-            self.cheat_pos2 += 1
-            if self.cheat_pos2 >= len(CHEAT_CODE2):
-                self.cheat_pos2 = 0
-                self.play_frames += CHEAT_TIME_SKIP
-                self.set_message(f"時間を{CHEAT_TIME_SKIP // FPS // 60}分進めた（テスト用）", 14)
-        else:
-            self.cheat_pos2 = 1 if pressed == CHEAT_CODE2[0] else 0
 
     # --- 邪魔者 -------------------------------------------------------------
     def update_pests(self):
@@ -2146,8 +2131,6 @@ class App:
             p.potions_bought += 1
             left = POTION_PER_FLOOR - p.potions_bought
             self.set_message(f"怪しい薬を買った（この階であと{left}本）", 11)
-        if item["type"] in ("pickaxe", "upgrade", "bell"):
-            self.check_completion()
 
     def celebrate(self, lines, col=10, burst=90):
         """画面いっぱいのお祝い。バッジ達成とレベル上限で共用する。"""
@@ -2167,15 +2150,13 @@ class App:
         return COMPLETE_EXP_MULT if self.completed else 1
 
     def check_completion(self):
-        """深層の店の品を全部買い切ったか。揃えると経験値10倍のご褒美。"""
+        """バッジを3つそろえたか。UIの「バッジ棚」とバナーの文言どおり、
+        判定もバッジだけを見る。以前はピッケル・強化・ネコ・鈴まで全部
+        買い切ることを条件にしていて、バッジを3つ持っていても他が未購入だと
+        発動しないズレたバグになっていた。"""
         if self.completed:
             return
-        p = self.player
-        # 深層の店に並ぶ全部（深層ピッケル4本＋強化カンスト＋ネコ＋鈴＋バッジ3種）
-        all_pick = all(i in p.owned for i in range(6, len(PICKAXES)))
-        all_up = all(p.upgrades[u["key"]] >= u.get("deep_max", u["max"]) for u in UPGRADES)
-        all_trink = len(self.trinkets) >= len(TRINKETS)
-        if all_pick and all_up and self.cat is not None and self.cat_bell and all_trink:
+        if len(self.trinkets) >= len(TRINKETS):
             self.completed = True
             self.celebrate(("バッジ ３つ そろった！",
                             f"ここから 経験値 {COMPLETE_EXP_MULT}倍！",
