@@ -568,14 +568,14 @@ UPGRADES = [
     # これは効率を買う品ではなく、画面が鉱石で埋まる爽快さを買う品。
     # だから値段も投資として見合う額ではなく、気軽に伸ばせる額に置く。
     {"key": "vein", "name": "鉱床ニョキニョキ", "desc": "鉱石がたくさん湧いて実入りも増える",
-     "base": 80000, "rate": 1.15, "max": 0, "deep_max": 23, "deep": True},
+     "base": 1500000, "rate": 1.235, "max": 0, "deep_max": 20, "deep": True},
     # ニョキニョキで画面が鉱石だらけになると、密着方式では刈り取りが追いつかない。
     # 掘る判定を円状に広げる。最大まで伸ばすと画面の半分ほどに届き、
     # 中央で少し動くだけで束で掘れる。深層の最後の爽快枠。
     # AoEの収入倍率が大きいので、値段はずっと高くする。
     # 序盤の効率投資ではなく、金が余った終盤の贅沢枠として置く。
-    {"key": "reach", "name": "掘進(くっしん)", "desc": "はなれた鉱石も まとめて掘れる",
-     "base": 4000000, "rate": 1.34, "max": 0, "deep_max": 15, "deep": True},
+    {"key": "reach", "name": "採掘範囲", "desc": "はなれた鉱石も まとめて掘れる",
+     "base": 8000000, "rate": 1.40, "max": 0, "deep_max": 15, "deep": True},
 ]
 
 BASE_MINING_RATE = 6.0     # 押しっぱなしのときの毎秒の振り回数
@@ -1262,6 +1262,7 @@ class App:
         self.cat_bell = False
         self.trinkets = set()       # 買ったバッジ
         self.completed = False      # バッジ3種そろえた（以降 経験値10倍）
+        self.flash = 0             # クリア突入やボス撃破の白フラッシュ
         self.maxed = False          # レベル上限に到達した
         self.fanfare = 0            # お祝い表示の残りフレーム
         self.fanfare_lines = ()
@@ -1363,6 +1364,8 @@ class App:
 
         if self.fanfare > 0:
             self.fanfare -= 1
+        if self.flash > 0:
+            self.flash -= 1
         self.particles = [p for p in self.particles if p.update()]
         self.popups = [p for p in self.popups if p.update()]
         if self.shake > 0.0:
@@ -1705,7 +1708,7 @@ class App:
     # --- 採掘 ---------------------------------------------------------------
     @property
     def mine_reach(self):
-        # 掘進 Lv0（本編）は 9px のまま。深層で伸ばすと円が広がるが、
+        # 採掘範囲 Lv0（本編）は 9px のまま。深層で伸ばすと円が広がるが、
         # 最大でも画面の 1/4 を囲むくらい（半径 ~63px）で止める。
         # それ以上だと画面外にサークルが出て「掘ってる感」が消える。
         return MINE_REACH + int(self.player.upgrades["reach"] * 1.8)
@@ -1720,7 +1723,7 @@ class App:
         return best
 
     def find_targets(self):
-        """掘る判定の円に入っている鉱石を全部返す。掘進が0なら実質いつも1個以下。"""
+        """掘る判定の円に入っている鉱石を全部返す。採掘範囲が0なら実質いつも1個以下。"""
         r = self.mine_reach
         return [o for o in self.ores
                 if math.hypot(o.x - self.player.x, o.y - self.player.y) - o.r <= r]
@@ -1749,7 +1752,7 @@ class App:
             pyxel.play(0, 1)
             if mode in ("all", "crit"):
                 px, py = self.damage_pos(ore)
-                self.popups.append(Popup(px, py, f"会心 {fmt(dmg)}", 10, crit=True, exact=True))
+                self.popups.append(Popup(px, py, fmt(dmg), 10, crit=True, exact=True))
         else:
             pyxel.play(0, 0)
             if mode == "all":
@@ -1825,16 +1828,7 @@ class App:
             # 本編クリア。ランクとタイムをここで確定させ、以後は動かさない。
             p.gold += int(ore.gold * p.gold_mult)
             p.gain_exp(ore.exp * self.exp_mult)
-            pyxel.stop()
-            pyxel.play(1, 7)
-            self.rank = self.judge_rank()
-            self.clear_time = self.play_frames
-            self.deep_end = False
-            self.clear_page = 0
-            self.clear_frames = 0
-            self.state = ST_CLEAR
-            if self.bgm_on:
-                pyxel.playm(1, loop=True)
+            self.enter_clear(deep=False)
             return
 
         pyxel.play(1, 7)
@@ -1848,10 +1842,19 @@ class App:
         self.popups.append(Popup(ore.x, ore.y - 14, f"+{fmt(gold)}", 10, crit=True))
 
         last = self.floor_index == len(FLOORS) - 1
+        if last and first:
+            # 最深部の主。これで最後だと分かるように大きく光って砕ける。
+            self.flash = 18
+            self.add_shake(SHAKE_PHANTOM * 2)
+            pyxel.play(1, 7)
+            for i in range(160):
+                self.particles.append(
+                    Particle(ore.x, ore.y, (7, 10, 14, 12)[i % 4],
+                             speed=5.5, life=48, size=3 if i % 3 else 2))
         if first:
             self.spawn_ladder(ore.x, ore.y)
             if last:
-                self.set_message(f"{ore.name}を砕いた！  上への道が開けた", 10)
+                self.set_message(f"{ore.name}を砕いた！  坑道の底が見えた", 10)
             else:
                 self.set_message(f"{ore.name}を砕いた！ 下への道が開けた", 11)
         else:
@@ -1866,6 +1869,21 @@ class App:
             self.set_message(f"あと{int(ore.hp_ratio * 100)}%だった…消えてしまった", 13)
         for _ in range(16):
             self.particles.append(Particle(ore.x, ore.y, 2, speed=1.6, life=24))
+
+    def enter_clear(self, deep):
+        pyxel.stop()
+        pyxel.play(1, 7)
+        pyxel.play(2, 4)              # 追加のきらめき
+        if not deep:
+            self.rank = self.judge_rank()
+            self.clear_time = self.play_frames
+        self.deep_end = deep
+        self.clear_page = 0
+        self.clear_frames = 0
+        self.flash = 20
+        self.state = ST_CLEAR
+        if self.bgm_on:
+            pyxel.playm(1, loop=True)
 
     def judge_rank(self):
         sec = self.play_frames // FPS
@@ -1900,14 +1918,7 @@ class App:
         if self.floor_index == len(FLOORS) - 1:
             # B10 の主を砕いたあとのハシゴ。登る＝坑道を出る＝エンディング。
             # 撃破後もそのまま居残って稼げるので、コンプ狙いはハシゴを無視して掘り続ける。
-            pyxel.stop()
-            pyxel.play(1, 7)
-            self.deep_end = True
-            self.clear_page = 0
-            self.clear_frames = 0
-            self.state = ST_CLEAR
-            if self.bgm_on:
-                pyxel.playm(1, loop=True)
+            self.enter_clear(deep=True)
             return
         self.floor_index += 1
         self.ladder = None
@@ -2227,6 +2238,12 @@ class App:
         self.draw_bottom_bar()
         if self.state == ST_SHOP:
             self.draw_shop()
+        if self.flash > 0:
+            pyxel.rectb(0, 0, SCREEN_W, SCREEN_H, 7)
+            if self.flash > 10:
+                pyxel.dither(0.4)
+                pyxel.rect(0, 0, SCREEN_W, SCREEN_H, 7)
+                pyxel.dither(1.0)
         if self.fanfare > 0:
             self.draw_fanfare()
 
@@ -2268,7 +2285,7 @@ class App:
         if self.ladder:
             self.draw_ladder(*self.ladder)
 
-        # 掘進の届く範囲を薄い円で見せる（伸ばしているときだけ）
+        # 採掘範囲の届く円を薄く見せる（伸ばしているときだけ）
         if self.player.upgrades["reach"] > 0:
             rr = self.mine_reach
             col = 12 if pyxel.btn(pyxel.KEY_Z) else 1
@@ -2557,6 +2574,9 @@ class App:
         t = self.clear_frames
         cue = self.CLEAR_CUE
         pyxel.cls(0)
+        if self.flash > 0:
+            pyxel.cls(7 if self.flash > 12 else 10)
+            return
         for i in range(80):
             a = i * 0.7 + pyxel.frame_count * 0.04
             d = (pyxel.frame_count * 1.6 + i * 13) % 200
@@ -2597,10 +2617,12 @@ class App:
         rows = [
             ("クリアタイム" if not self.deep_end else "総プレイ時間",
              mmss(self.play_frames if self.deep_end else (self.clear_time or self.play_frames))),
-            ("最終レベル", f"Lv.{p.level}"),
+            ("最終レベル", f"Lv.{p.level}" + (" / MAX" if self.maxed else "")),
             ("最終ピッケル", PICKAXES[p.pickaxe]["name"]),
             ("掘った鉱石", f"{p.total_mined} 個"),
         ]
+        if self.deep_end:
+            rows.append(("集めたバッジ", f"{len(self.trinkets)} / {len(TRINKETS)} 個"))
         for i, (k, v) in enumerate(rows):
             if t < cue["rows"] + i * 10:
                 break
@@ -2609,7 +2631,12 @@ class App:
             text(140, y, v, 7)
 
         if t >= cue["hint"]:
-            if self.deep_end:
+            if self.deep_end and not self.completed:
+                text_center(SCREEN_W // 2, 190, "店でバッジ３つ集めると", 13)
+                text_center(SCREEN_W // 2, 202, "その先のやりこみが開く", 13)
+                if (pyxel.frame_count // 15) % 2 == 0:
+                    text_center(SCREEN_W // 2, 216, "[Z] さいごまで見る", 11)
+            elif self.deep_end:
                 if (pyxel.frame_count // 15) % 2 == 0:
                     text_center(SCREEN_W // 2, 202, "[Z] さいごまで見る", 11)
             elif can_deep:
