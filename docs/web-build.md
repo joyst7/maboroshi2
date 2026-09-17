@@ -16,6 +16,14 @@ pyxel app2html maboroshi.pyxapp
 cp maboroshi.html <このリポジトリ>/index.html
 ```
 
+`pyxel app2html` は毎回ファイルを丸ごと作り直すので、コピー後に
+Pyxel のライセンス表示コメントを1行目の `<!doctype html>` の直後へ入れ直す
+（[THIRD_PARTY_LICENSES.md](../THIRD_PARTY_LICENSES.md) 参照）。
+
+```html
+<!-- Powered by Pyxel (MIT License) - https://github.com/kitao/pyxel/blob/main/LICENSE -->
+```
+
 リポジトリのフォルダをそのまま `pyxel package` に渡すと docs/ や .git まで
 巻き込んで無駄に大きくなるので、必要な2ファイルだけを別の場所に置いて作る。
 

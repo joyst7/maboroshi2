@@ -53,3 +53,8 @@ pyxel edit maboroshi.pyxres   # 本物を手で描き直す
 pyxel package . maboroshi.py   # maboroshi.pyxapp
 pyxel app2html maboroshi.pyxapp   # maboroshi.html
 ```
+
+## ライセンス
+
+本作は [Pyxel](https://github.com/kitao/pyxel)（MIT License）で作られています。
+著作権表示とライセンス全文は [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) を参照。
