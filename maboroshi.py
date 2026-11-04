@@ -27,6 +27,75 @@ import random
 import pyxel
 
 # ==============================================================================
+#  スマホ・ゲームパッド対応
+#    ブラウザ版は Pyxel が画面に仮想パッド（十字キー＋丸い4ボタン＋START/BACK）を出す。
+#    ゲーム側は pyxel.btn(キー) でキーボードしか見ていないので、ここで
+#    「そのキーに対応するパッドのボタン」も押されたことにする。ゲーム本体は無改造。
+#      十字キー = 矢印    下ボタン = Z(ほる)    右 = X(はしご)
+#      左 = C(くすり)     上 = S(みせ)          START = R(もう一度)  BACK = M(BGM)
+# ==============================================================================
+_PAD = {
+    pyxel.KEY_UP: (pyxel.GAMEPAD1_BUTTON_DPAD_UP,),
+    pyxel.KEY_DOWN: (pyxel.GAMEPAD1_BUTTON_DPAD_DOWN,),
+    pyxel.KEY_LEFT: (pyxel.GAMEPAD1_BUTTON_DPAD_LEFT,),
+    pyxel.KEY_RIGHT: (pyxel.GAMEPAD1_BUTTON_DPAD_RIGHT,),
+    pyxel.KEY_Z: (pyxel.GAMEPAD1_BUTTON_A,),
+    pyxel.KEY_X: (pyxel.GAMEPAD1_BUTTON_B,),
+    pyxel.KEY_C: (pyxel.GAMEPAD1_BUTTON_X,),
+    pyxel.KEY_S: (pyxel.GAMEPAD1_BUTTON_Y,),
+    pyxel.KEY_R: (pyxel.GAMEPAD1_BUTTON_START,),
+    pyxel.KEY_M: (pyxel.GAMEPAD1_BUTTON_BACK,),
+}
+_raw_btn, _raw_btnp, _raw_btnr = pyxel.btn, pyxel.btnp, pyxel.btnr
+
+
+def _touch_device():
+    """ブラウザ版でタッチ操作の端末か。デスクトップ版（js が無い）は False。"""
+    try:
+        from js import window
+        return bool(window.matchMedia("(pointer: coarse)").matches)
+    except Exception:
+        return False
+
+
+PAD_UI = _touch_device()    # True の間は、操作の表示を「Z」でなく「▼」などに切り替える
+
+
+def _pad_hit(raw, key, *extra):
+    global PAD_UI
+    for b in _PAD.get(key, ()):
+        if raw(b, *extra):
+            PAD_UI = True
+            return True
+    return False
+
+
+def _btn(key):
+    return _raw_btn(key) or _pad_hit(_raw_btn, key)
+
+
+def _btnp(key, hold=None, repeat=None):
+    if hold is None:
+        return _raw_btnp(key) or _pad_hit(_raw_btnp, key)
+    return _raw_btnp(key, hold, repeat) or _pad_hit(_raw_btnp, key, hold, repeat)
+
+
+def _btnr(key):
+    return _raw_btnr(key) or _pad_hit(_raw_btnr, key)
+
+
+pyxel.btn, pyxel.btnp, pyxel.btnr = _btn, _btnp, _btnr
+
+#   パッドの丸ボタンの並び（上=S 左=C 右=X 下=Z）。画面の操作表示で、押す場所を光らせる
+PAD_DOT = {"S": (6, 1), "C": (2, 5), "X": (10, 5), "Z": (6, 9)}   # キャップ内の位置
+PAD_NAME = {"Z": "▼", "X": "▶", "C": "◀", "S": "▲", "R": "START", "M": "BACK"}
+
+
+def kn(key):
+    """操作の名前。キーボードなら "Z"、パッドなら "▼" のように返す。"""
+    return PAD_NAME.get(key, key) if PAD_UI else key
+
+# ==============================================================================
 #  画面レイアウト
 #    盤面(FIELD)とUI帯を完全に分離する。鉱石や数字がテロップに重ならないように、
 #    盤面の描画はクリップ領域で切り取る。
@@ -423,12 +492,25 @@ def panel(x, y, w, h, fill=1, edge=0, hi=5):
 
 
 def key_cap_w(key):
+    if PAD_UI and (key in PAD_DOT or key == "↑↓"):
+        return 15
     return text_w(key) + 7
 
 
 def key_cap(x, y, key, col=10, lit=7):
-    """キーの絵柄。金色の四角に濃紺の文字。押せるキーだと一目で分かる。"""
+    """キーの絵柄。金色の四角に濃紺の文字。押せるキーだと一目で分かる。
+    パッドで遊んでいるときは、丸ボタン4つの並びを描いて、押す場所だけ金色に光らせる。"""
     w = key_cap_w(key)
+    if PAD_UI and (key in PAD_DOT or key == "↑↓"):
+        pyxel.rect(x, y, w, 13, 1)
+        pyxel.rectb(x, y, w, 13, 5)
+        if key == "↑↓":
+            pyxel.rect(x + 6, y + 2, 3, 9, 10)       # 十字キー
+            pyxel.rect(x + 3, y + 5, 9, 3, 10)
+            return w
+        for k, (dx, dy) in PAD_DOT.items():
+            pyxel.rect(x + dx, y + dy, 3, 3, 10 if k == key else 5)
+        return w
     pyxel.rect(x, y, w, 13, col)
     pyxel.rectb(x, y, w, 13, 0)
     pyxel.line(x + 1, y + 1, x + w - 2, y + 1, lit)
@@ -1752,7 +1834,7 @@ class App:
                 boss.lifetime = int(boss.lifetime * (1.0 + self.player.upgrades["luck"] * 0.02))
                 self.ores.append(boss)
                 pyxel.play(1, 5)
-                self.set_message(f"{boss.name}が現れた…！", 8)
+                self.set_message("ボスが現れた…！", 8)
                 return
 
         cap = self.ore_cap
@@ -2154,7 +2236,7 @@ class App:
                               "sub": sub, "price": None if bought else price, "col": 14})
         return items
 
-    SHOP_ROWS = 6
+    SHOP_ROWS = 5
 
     def update_shop(self):
         items = self.shop_items()
@@ -2508,10 +2590,10 @@ class App:
         elif self.ladder is not None:
             status, scol = "ハシゴ発見!", 11
         else:
-            status, scol = "ボスを探せ", 14
+            status, scol = "", 0
         left_end = 3 + text_w(fl["name"])
         right_start = cx
-        if text_w(status) + 12 < right_start - left_end:
+        if status and text_w(status) + 12 < right_start - left_end:
             text_o((left_end + right_start) // 2 - text_w(status) // 2, 2, status, scol)
 
         # 2段目: レベル+EXP / 攻撃力 / ピッケル
@@ -2583,7 +2665,8 @@ class App:
 
     @staticmethod
     def key_hints_w(pairs):
-        return sum(key_cap_w(k) + 3 + text_w(a) + 8 for k, a in pairs) - 8
+        gap = 4 if PAD_UI else 8
+        return sum(key_cap_w(k) + 3 + text_w(a) + gap for k, a in pairs) - gap
 
     @staticmethod
     def draw_key_hints(x, y, pairs):
@@ -2592,7 +2675,7 @@ class App:
         for key, action in pairs:
             x += key_cap(x, y, key) + 3
             text_o(x, y + 1, action, 7)
-            x += text_w(action) + 8
+            x += text_w(action) + (4 if PAD_UI else 8)
 
     # 7x6 のハート。1 のところを塗る。まわりは黒でふちどる
     _HEART = ("0110110", "1111111", "1111111", "0111110", "0011100", "0001000")
@@ -2614,7 +2697,7 @@ class App:
             pyxel.pset(x + 2, y + 1, 14)
 
     def draw_phantom_rows(self, ph):
-        name = ph.name
+        name = "ボス"
         text_o(4, ROW_PH1, name, 14 if (pyxel.frame_count // 8) % 2 == 0 else 7)
         bx = 4 + text_w(name) + 6
         bw = SCREEN_W - bx - 52
@@ -2656,7 +2739,7 @@ class App:
             line = line[:-2] + "…"
         text_o(x0 + 6, y0 + 19, line, 14)
 
-        row_h = 26
+        row_h = 30
         y = y0 + 34
         visible = items[self.shop_scroll:self.shop_scroll + self.SHOP_ROWS]
         list_top = y
@@ -2664,9 +2747,9 @@ class App:
             idx = self.shop_scroll + i
             sel = (idx == self.shop_cursor)
             if sel:
-                pyxel.rect(x0 + 3, y - 3, w - 6, row_h - 1, 5)
-                pyxel.rectb(x0 + 3, y - 3, w - 6, row_h - 1, 12)
-                pyxel.line(x0 + 4, y - 2, x0 + w - 5, y - 2, 6)
+                pyxel.rect(x0 + 3, y - 4, w - 6, row_h - 1, 5)
+                pyxel.rectb(x0 + 3, y - 4, w - 6, row_h - 1, 12)
+                pyxel.line(x0 + 4, y - 3, x0 + w - 5, y - 3, 6)
                 # 選んでいる行を指す、はねる三角
                 ax = x0 + 6 + (pyxel.frame_count // 8) % 2
                 pyxel.tri(ax, y + 1, ax, y + 9, ax + 5, y + 5, 10)
@@ -2674,10 +2757,10 @@ class App:
             sold = it["price"] is None
             afford = (not sold) and p.gold >= it["price"]
             name_col = 13 if sold else (it["col"] if sel else 7)
-            if it["col"] in (1, 2, 4, 5) and sel and not sold:
-                name_col = 7          # 暗い色の品名は、選択中の青地に沈むので白にする
+            if sel and not sold:
+                name_col = 10         # 選択中は青地に映える金色にそろえる
             text_o(x0 + 15, y, it["label"], name_col, 1 if sel else 0)
-            text(x0 + 15, y + 12, it["sub"], 13 if sold else (7 if sel else 6))
+            text(x0 + 15, y + 13, it["sub"], 13 if sold else (7 if sel else 6))
 
             if sold:
                 text_o_r(x0 + w - 8, y, "売り切れ", 13)
@@ -2703,7 +2786,7 @@ class App:
             pyxel.rect(x0 + w - 3, bar_y, 2, bar_h, 13)
 
         pairs = (("↑↓", "えらぶ"), ("Z", "かう"), ("S", "とじる"))
-        self.draw_key_hints(SCREEN_W // 2 - self.key_hints_w(pairs) // 2, y0 + h - 17, pairs)
+        self.draw_key_hints(SCREEN_W // 2 - self.key_hints_w(pairs) // 2, y0 + h - 18, pairs)
 
     # --- タイトル -----------------------------------------------------------
     def draw_title(self):
@@ -2753,8 +2836,8 @@ class App:
         text_big_o(cx, 14 + wave, "ナポの幻鉱", 10, scale=3, oc=0, shadow=8)
         text_o_center(cx, 66, "- M A B O R O S H I -", 14, 0)
 
-        text_o_center(cx, 84, "ピンクの髪の ナポが", 7)
-        text_o_center(cx, 97, "幻の鉱石をさがして ほりほり！", 7)
+        text_o_center(cx, 90, "ナポと いっしょに", 7)
+        text_o_center(cx, 103, "幻の鉱石を ほりほり！", 7)
 
         # スタートボタン（金色＝押せる）
         bw, bh = 132, 22
@@ -2765,10 +2848,14 @@ class App:
         pyxel.rect(bx, by + press, bw, bh, 10)
         pyxel.rectb(bx, by + press, bw, bh, 0)
         pyxel.line(bx + 1, by + 1 + press, bx + bw - 2, by + 1 + press, 7)
-        text_center(cx, by + 5 + press, "スタート  [Z]", 1)
+        text_center(cx, by + 5 + press, f"スタート  [{kn('Z')}]", 1)
 
-        text_o_center(cx, 232, "矢印:うごく  Z:ほる  S:おみせ  M:BGM", 7)
-        text_o_center(cx, 244, "ENTER / SPACE でも はじめられるよ", 6)
+        if PAD_UI:
+            text_o_center(cx, 232, "十字キー:うごく  ▼:ほる  ▲:おみせ", 7)
+            text_o_center(cx, 244, "BACK:おんがく", 6)
+        else:
+            text_o_center(cx, 232, "矢印:うごく  Z:ほる  S:おみせ  M:BGM", 7)
+            text_o_center(cx, 244, "ENTER / SPACE でも はじめられるよ", 6)
 
     # --- クリア -------------------------------------------------------------
     # クリア画面は上から順に立ち上げる。全部が同時に出ると結果表であって
@@ -2843,19 +2930,19 @@ class App:
             if self.deep_end and not self.completed:
                 text_o_center(SCREEN_W // 2, hy, "バッジを３つ集めるとやりこみ解放", 13)
                 if blink:
-                    text_o_center(SCREEN_W // 2, hy + 13, "[Z] さいごまで見る", 11)
+                    text_o_center(SCREEN_W // 2, hy + 13, f"[{kn('Z')}] さいごまで見る", 11)
             elif self.deep_end:
                 if blink:
-                    text_o_center(SCREEN_W // 2, hy + 4, "[Z] さいごまで見る", 11)
+                    text_o_center(SCREEN_W // 2, hy + 4, f"[{kn('Z')}] さいごまで見る", 11)
             elif can_deep:
                 text_o_center(SCREEN_W // 2, hy, "Aランク！ ボーナスステージ解放", 10)
                 if blink:
-                    text_o_center(SCREEN_W // 2, hy + 13, "[Z] さらに下へ潜る", 11)
+                    text_o_center(SCREEN_W // 2, hy + 13, f"[{kn('Z')}] さらに下へ潜る", 11)
             else:
                 text_o_center(SCREEN_W // 2, hy, f"{DEEP_GATE_SEC // 60}分以内でボーナス解放", 13)
 
         if t >= cue["prompt"]:
-            text_o_center(SCREEN_W // 2, 234, "[R] もう一度掘る", 6)
+            text_o_center(SCREEN_W // 2, 234, f"[{kn('R')}] もう一度掘る", 6)
             # ナポがよろこんで跳ねる
             hop = abs(int(math.sin(pyxel.frame_count * 0.2) * 5))
             sprite_scaled(*SPR_MINER[1], 16, 226, 196 - hop, 2)
@@ -2908,9 +2995,9 @@ class App:
         sprite_scaled(*SPR_MINER[1], 16, 226, 176 - hop, 2)
         if (pyxel.frame_count // 15) % 2 == 0:
             if self.deep_end:
-                text_o_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 11)
+                text_o_center(SCREEN_W // 2, 232, f"[{kn('R')}] もう一度掘る", 11)
             else:
-                text_o_center(SCREEN_W // 2, 232, "[Z] さらに潜る    [R] もう一度掘る", 11)
+                text_o_center(SCREEN_W // 2, 232, f"[{kn('Z')}] さらに潜る    [{kn('R')}] もう一度掘る", 11)
 
 
 if __name__ == "__main__":
