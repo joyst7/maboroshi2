@@ -250,11 +250,11 @@ NORMAL_LAST = 4                # B5F
 #   (この秒数未満なら, ランク記号, 称号, 深層へ潜れるか)
 #   深層は「おすすめしない」枠。B5 で終える人が本編を遊び切ったことに変わりはない。
 RANKS = [
-    (8 * 60, "S", "伝説の採掘士", True),
-    (12 * 60, "A", "熟練の採掘士", True),
-    (18 * 60, "B", "一人前の採掘士", False),
-    (26 * 60, "C", "見習い採掘士", False),
-    (10 ** 9, "D", "駆け出しの採掘士", False),
+    (8 * 60, "S", "伝説のほりほり名人", True),
+    (12 * 60, "A", "熟練のほりほり名人", True),
+    (18 * 60, "B", "一人前のほりほりナポ", False),
+    (26 * 60, "C", "見習いナポ", False),
+    (10 ** 9, "D", "ほりほり修行中のナポ", False),
 ]
 DEEP_GATE_SEC = RANKS[1][0]    # ここを切ると深層へ行ける（Aランク）
 
@@ -380,7 +380,67 @@ def text_big(cx, y, s, col, scale=3):
         img.cls(0)
         img.text(1, 1, s, col, FONT)
         _BIG_CACHE[key] = img
-    pyxel.blt(cx - img.width * scale // 2, y, img, 0, 0, img.width, img.height, 0, scale=scale)
+    # blt の拡大は「元画像の中心」を基準に広がる。中心が cx、上端が y に来るよう置く。
+    pyxel.blt(cx - img.width // 2, y + img.height * (scale - 1) // 2,
+              img, 0, 0, img.width, img.height, 0, scale=scale)
+
+
+_OUTLINE_DIRS = ((-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1))
+
+
+def text_o(x, y, s, col, oc=0):
+    """ふち付き文字。ナポシリーズ流に、濃い色で1pxふちどって読みやすくする。"""
+    for dx, dy in _OUTLINE_DIRS:
+        text(x + dx, y + dy, s, oc)
+    text(x, y, s, col)
+
+
+def text_o_r(right_x, y, s, col, oc=0):
+    text_o(right_x - text_w(s), y, s, col, oc)
+
+
+def text_o_center(cx, y, s, col, oc=0):
+    text_o(cx - text_w(s) // 2, y, s, col, oc)
+
+
+def text_big_o(cx, y, s, col, scale=3, oc=0, shadow=None):
+    """ふち付きの大きな文字。shadow を渡すと真下に影の色を1段足す。"""
+    d = max(1, scale // 2)
+    if shadow is not None:
+        for dx, dy in _OUTLINE_DIRS:
+            text_big(cx + dx * d, y + d + dy * d, s, oc, scale)
+        text_big(cx, y + d, s, shadow, scale)
+    for dx, dy in _OUTLINE_DIRS:
+        text_big(cx + dx * d, y + dy * d, s, oc, scale)
+    text_big(cx, y, s, col, scale)
+
+
+def panel(x, y, w, h, fill=1, edge=0, hi=5):
+    """ナポ風のパネル。濃紺の箱＋1pxのふち＋上辺の明るい1px。"""
+    pyxel.rect(x, y, w, h, fill)
+    pyxel.rectb(x, y, w, h, edge)
+    pyxel.line(x + 1, y + 1, x + w - 2, y + 1, hi)
+
+
+def key_cap_w(key):
+    return text_w(key) + 7
+
+
+def key_cap(x, y, key, col=10, lit=7):
+    """キーの絵柄。金色の四角に濃紺の文字。押せるキーだと一目で分かる。"""
+    w = key_cap_w(key)
+    pyxel.rect(x, y, w, 13, col)
+    pyxel.rectb(x, y, w, 13, 0)
+    pyxel.line(x + 1, y + 1, x + w - 2, y + 1, lit)
+    text(x + 3, y + 1, key, 1)
+    return w
+
+
+def sprite_scaled(u, v, size, cx, top, scale, flip=1):
+    """スプライトを整数倍で拡大して、横を中央揃えで描く。"""
+    # 拡大は画像の中心基準なので、上端が top に来るよう下へずらして置く
+    pyxel.blt(cx - size // 2, top + size * (scale - 1) // 2, 0, u, v, size * flip, size,
+              COLKEY, scale=scale)
 
 
 def _fmt_scaled(n, div):
@@ -456,63 +516,63 @@ PHANTOM_R = 12
 
 FLOORS = [
     {
-        "name": "B1F 銅の坑道", "bg": 1, "rock": 4, "pal": {4: 4, 13: 13, 9: 9},
+        "name": "B1F 銅のおさんぽ道", "bg": 1, "rock": 4, "pal": {4: 4, 13: 13, 9: 9},
         "spawn": {"copper": 72, "iron": 24, "silver": 4},
-        "boss": "頑固な岩塊", "witch": "おや新入りかい。石でも持っておいで。",
+        "boss": "がんこ岩のゴロン", "witch": "あら、いらっしゃい。ナポちゃん。",
         "ph_hp": 20000, "ph_gold": 2500, "ph_exp": 600, "potion": 3000,
         "pest": {"every": 20, "speed": 1.50, "warn": 24, "max": 1, "linger": False},
         "cat_find": 600,
     },
     {
-        "name": "B2F 鉄の坑道", "bg": 1, "rock": 5, "pal": {4: 5, 13: 13, 9: 6},
+        "name": "B2F 鉄のがっちり道", "bg": 1, "rock": 5, "pal": {4: 5, 13: 13, 9: 6},
         "spawn": {"copper": 32, "iron": 46, "silver": 20, "gold": 2},
-        "boss": "鉄錆の主", "witch": "ふん、少しは見所があるじゃないか。",
+        "boss": "さびさびテツ丸", "witch": "ふふ、なかなかやるじゃない。",
         "ph_hp": 210000, "ph_gold": 26000, "ph_exp": 3500, "potion": 12000,
         "pest": {"every": 18, "speed": 1.65, "warn": 22, "max": 1, "linger": False},
         "cat_find": 1800,
     },
     {
-        "name": "B3F 銀の坑道", "bg": 5, "rock": 1, "pal": {4: 5, 13: 6, 9: 7},
+        "name": "B3F 銀のきらり道", "bg": 5, "rock": 1, "pal": {4: 5, 13: 6, 9: 7},
         "spawn": {"copper": 10, "iron": 30, "silver": 42, "gold": 16, "gem": 2},
-        "boss": "銀霧のぬし", "witch": "深いとこは物入りでね。高いよ。",
+        "boss": "ぎん霧のモヤ姫", "witch": "深いと物入りよ。ちょっと高いわよ。",
         "ph_hp": 2200000, "ph_gold": 210000, "ph_exp": 14000, "potion": 60000,
         "pest": {"every": 16, "speed": 1.80, "warn": 20, "max": 1, "linger": False},
         "cat_find": 6000,
     },
     {
-        "name": "B4F 金の坑道", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 10},
+        "name": "B4F 金のぴかぴか道", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 10},
         "spawn": {"iron": 10, "silver": 30, "gold": 38, "gem": 18, "bismuth": 4},
-        "boss": "黄金の巨岩", "witch": "ここまで降りてやってるんだ。",
+        "boss": "こがねの大岩ドン", "witch": "ここまで来たのね。おどろいたわ。",
         "ph_hp": 18000000, "ph_gold": 1600000, "ph_exp": 45000, "potion": 300000,
         "pest": {"every": 14, "speed": 1.90, "warn": 18, "max": 1, "linger": False},
         "cat_find": 20000,
     },
     {
-        "name": "B5F 幻の坑道", "bg": 2, "rock": 1, "pal": {4: 2, 13: 14, 9: 14},
+        "name": "B5F 幻のひみつ道", "bg": 2, "rock": 1, "pal": {4: 2, 13: 14, 9: 14},
         "spawn": {"silver": 14, "gold": 32, "gem": 34, "bismuth": 16},
         # 幻片は運を積むほど見つかる。運0では滅多に出ない。
         "spawn_luck": {"shard": 0.55},
-        "boss": "幻の鉱床", "witch": "最果てだ。……あんた、本気だね。",
+        "boss": "幻の鉱床", "witch": "最果てよ。……ナポちゃん、本気ね。",
         "ph_hp": 160000000, "ph_gold": 7000000, "ph_exp": 60000, "potion": 900000,
         "pest": {"every": 13, "speed": 2.00, "warn": 16, "max": 1, "linger": False},
         "cat_find": 50000,
     },
     # ------------------------------------------------------------------ 深層
     {
-        "name": "B6F 深層", "bg": 1, "rock": 1, "pal": {4: 1, 13: 5, 9: 12},
+        "name": "B6F 深層のとびら", "bg": 1, "rock": 1, "pal": {4: 1, 13: 5, 9: 12},
         "spawn": {"gem": 12, "bismuth": 20, "shard": 20, "abyss": 48},
         "spawn_luck": {"abyss": 0.5},
-        "boss": "深層の主", "witch": "……まだ来るのかい。もう驚かないよ。",
+        "boss": "ふかぶかの主", "witch": "……まだ行くの？ もう驚かないわよ。",
         "ph_hp": 1400000000, "ph_gold": 95000000, "ph_exp": 120000, "potion": 15000000,
         # 当てても去らずに狙い直す。ネコのクールタイム5秒では捌ききれなくなる。
         "pest": {"every": 11, "speed": 2.10, "warn": 16, "max": 2, "linger": True},
         "cat_find": 130000,
     },
     {
-        "name": "B7F 溶鉄郷", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 8},
+        "name": "B7F ぐつぐつ溶鉄郷", "bg": 4, "rock": 2, "pal": {4: 4, 13: 9, 9: 8},
         "spawn": {"bismuth": 12, "shard": 16, "abyss": 24, "molten": 48},
         "spawn_luck": {"molten": 0.5},
-        "boss": "溶鉄の巨腕", "witch": "この深さで店を開くのは、あたしとあんただけさ。",
+        "boss": "ぐつぐつ巨腕", "witch": "この深さにお店があるのは、ひみつよ。",
         "ph_hp": 5000000000, "ph_gold": 400000000, "ph_exp": 260000, "potion": 60000000,
         "pest": {"every": 11, "speed": 2.15, "warn": 15, "max": 2, "linger": True},
         "cat_find": 210000,
@@ -521,7 +581,7 @@ FLOORS = [
         "name": "B8F 虚無の淵", "bg": 2, "rock": 1, "pal": {4: 2, 13: 1, 9: 13},
         "spawn": {"shard": 12, "abyss": 16, "molten": 24, "void": 48},
         "spawn_luck": {"void": 0.5},
-        "boss": "虚無を這うもの", "witch": "何を探してるのか、もう聞かないでおくよ。",
+        "boss": "すきまのヌシ", "witch": "何を探してるのか、もう聞かないわ。",
         "ph_hp": 19000000000, "ph_gold": 1100000000, "ph_exp": 560000, "potion": 150000000,
         "pest": {"every": 10, "speed": 2.20, "warn": 15, "max": 2, "linger": True},
         "cat_find": 320000,
@@ -530,7 +590,7 @@ FLOORS = [
         "name": "B9F 原初の坑", "bg": 1, "rock": 1, "pal": {4: 1, 13: 13, 9: 6},
         "spawn": {"abyss": 12, "molten": 16, "void": 24, "primeval": 48},
         "spawn_luck": {"primeval": 0.5},
-        "boss": "原初の鼓動", "witch": "ここまで来たら、戻る方が遠い。",
+        "boss": "ドクンの原初", "witch": "ここまで来たら、戻るほうが遠いわね。",
         "ph_hp": 70000000000, "ph_gold": 350000000, "ph_exp": 1200000, "potion": 300000000,
         "pest": {"every": 10, "speed": 2.25, "warn": 14, "max": 2, "linger": True},
         "cat_find": 500000,
@@ -539,7 +599,7 @@ FLOORS = [
         "name": "B10F 幻鉱の源", "bg": 0, "rock": 5, "pal": {4: 0, 13: 5, 9: 7},
         "spawn": {"molten": 14, "void": 26, "primeval": 60},
         "spawn_luck": {"primeval": 0.5},
-        "boss": "幻鉱そのもの", "witch": "……行っといで。ここで待ってる。",
+        "boss": "幻鉱そのもの", "witch": "……いってらっしゃい。ここで待ってるわ。",
         "ph_hp": 130000000000, "ph_gold": 600000000, "ph_exp": 3000000, "potion": 600000000,
         "pest": {"every": 9, "speed": 2.30, "warn": 14, "max": 2, "linger": True},
         "cat_find": 800000,
@@ -2429,48 +2489,61 @@ class App:
     def draw_top_bar(self):
         p = self.player
         fl = FLOORS[self.floor_index]
-        pyxel.rect(0, 0, SCREEN_W, UI_TOP_H, 0)
+        pyxel.rect(0, 0, SCREEN_W, UI_TOP_H, 1)
+        pyxel.line(0, 0, SCREEN_W, 0, 5)
 
         # 1段目: 階層名 / 状況 / 資源
-        text(3, 2, fl["name"], 11)
-        gold_s = f"お金 {fmt(p.gold)}"
-        text_r(SCREEN_W - 3, 2, gold_s, 10)
+        text_o(3, 2, fl["name"], 11)
+        gold_s = fmt(p.gold)
+        text_o_r(SCREEN_W - 3, 2, gold_s, 10)
+        # お金の前に金貨の絵柄を置く（「お金」の文字より一目で分かる）
+        cx = SCREEN_W - 3 - text_w(gold_s) - 11
+        pyxel.circ(cx + 4, 8, 4, 0)
+        pyxel.circ(cx + 4, 8, 3, 10)
+        pyxel.pset(cx + 3, 6, 7)
+        pyxel.pset(cx + 4, 6, 7)
 
         if self.floor_index >= NORMAL_LAST:
-            status, scol = "最深部", 8
+            status, scol = "最深部", 14
         elif self.ladder is not None:
-            status, scol = "ハシゴ発見", 11
+            status, scol = "ハシゴ発見!", 11
         else:
-            status, scol = "主: 未撃破", 8
+            status, scol = "ボスを探せ", 14
         left_end = 3 + text_w(fl["name"])
-        right_start = SCREEN_W - 3 - text_w(gold_s)
+        right_start = cx
         if text_w(status) + 12 < right_start - left_end:
-            text((left_end + right_start) // 2 - text_w(status) // 2, 2, status, scol)
+            text_o((left_end + right_start) // 2 - text_w(status) // 2, 2, status, scol)
 
         # 2段目: レベル+EXP / 攻撃力 / ピッケル
         maxed = p.level >= MAX_LEVEL
         lv_s = f"Lv.{p.level}" + (" MAX" if maxed else "")
-        text(3, 16, lv_s, 10 if maxed else 7)
+        text_o(3, 16, lv_s, 10 if maxed else 7)
         bx = 6 + text_w(lv_s)
-        pyxel.rect(bx, 20, 30, 4, 1)
+        # 経験値ゲージ: 黒いふち＋青い土台＋明るいふち。伸びていくのが見やすい
+        pyxel.rect(bx - 1, 19, 32, 6, 0)
+        pyxel.rect(bx, 20, 30, 4, 5)
         if maxed:
-            pyxel.rect(bx, 20, 30, 4, 10)
+            fillw, fcol = 30, 10
         else:
-            pyxel.rect(bx, 20, int(30 * (p.exp / p.exp_to_next)), 4, 11)
+            fillw, fcol = int(30 * (p.exp / p.exp_to_next)), 11
+        if fillw > 0:
+            pyxel.rect(bx, 20, fillw, 4, fcol)
+            pyxel.line(bx, 20, bx + fillw - 1, 20, 7)
         atk_x = bx + 36
         if self.completed and not maxed:
             # 経験値10倍が効いているあいだの目印
             mark = f"x{COMPLETE_EXP_MULT}"
-            text(bx + 33, 16, mark, 10 if (pyxel.frame_count // 8) % 2 == 0 else 14)
+            text_o(bx + 33, 16, mark, 10 if (pyxel.frame_count // 8) % 2 == 0 else 14)
             atk_x = bx + 36 + text_w(mark)
-        text(atk_x, 16, f"攻撃 {fmt(p.attack_damage(False))}", 7)
+        text_o(atk_x, 16, f"攻撃 {fmt(p.attack_damage(False))}", 7)
         pick = PICKAXES[p.pickaxe]
-        text_r(SCREEN_W - 3, 16, pick["name"], pick["col"])
+        # 色の暗いピッケル（木・原初など）が紺の帯に沈まないよう、明るい下地をはさむ
+        text_o_r(SCREEN_W - 3, 16, pick["name"], 7 if pick["col"] in (1, 2, 4, 5) else pick["col"])
 
     # --- 下部のコマンド帯 ---------------------------------------------------
     def draw_bottom_bar(self):
         p = self.player
-        pyxel.rect(0, UI_BOTTOM_Y + 1, SCREEN_W, SCREEN_H - UI_BOTTOM_Y, 0)
+        pyxel.rect(0, UI_BOTTOM_Y + 1, SCREEN_W, SCREEN_H - UI_BOTTOM_Y, 1)
 
         ph = next((o for o in self.ores if o.phantom), None)
         if ph:
@@ -2478,6 +2551,8 @@ class App:
 
         # メッセージがあるときはそちらを優先し、なければコンボやバフを出す
         if self.message_timer > 0:
+            mw = text_w(self.message) + 14
+            panel(SCREEN_W // 2 - mw // 2, ROW_INFO - 2, mw, 14, 0, self.message_col, 1)
             text_center(SCREEN_W // 2, ROW_INFO, self.message, self.message_col)
         else:
             left = []
@@ -2487,13 +2562,13 @@ class App:
                 left.append(f"怪しい薬 残り{p.buff_left // FPS + 1}秒")
             s = "   ".join(left)
             if s:
-                text(4, ROW_INFO, s, 10 if p.buff_active else 7)
+                text_o(4, ROW_INFO, s, 10 if p.buff_active else 7)
             # 右の所持数は、左と重なるときだけ引っ込める
             held = f"怪しい薬 x{p.potions}"
             if p.potions > 0 and 4 + text_w(s) + 8 <= SCREEN_W - 4 - text_w(held):
-                text_r(SCREEN_W - 4, ROW_INFO, held, 10)
+                text_o_r(SCREEN_W - 4, ROW_INFO, held, 10)
 
-        self.draw_key_hints(4, ROW_HINT,
+        self.draw_key_hints(4, ROW_HINT - 2,
                             (("Z", "ほる"), ("S", "みせ"), ("C", "くすり"), ("X", "はしご")))
         if TUNING:
             text_r(SCREEN_W - 4 - p.max_hp * 7 - 6, ROW_HINT,
@@ -2504,43 +2579,56 @@ class App:
 
         # 体力。階層を降りるたび全快するので、ここが尽きるのは「同じ階で3回やられた」とき。
         for i in range(p.max_hp):
-            self.draw_heart(SCREEN_W - 4 - (p.max_hp - i) * 7, ROW_HINT + 2, i < p.hp)
+            self.draw_heart(SCREEN_W - 5 - (p.max_hp - i) * 10, ROW_HINT - 1, i < p.hp)
+
+    @staticmethod
+    def key_hints_w(pairs):
+        return sum(key_cap_w(k) + 3 + text_w(a) + 8 for k, a in pairs) - 8
 
     @staticmethod
     def draw_key_hints(x, y, pairs):
-        """Z→ほる のように、キーとことばを矢印でつなぐ。
-        「Zほる」だと1つの単語に見えて読めてしまうが、矢印を挟めば
-        「Zを押すとほる」という向きが一目で伝わる。角カッコは幅を食うので
-        外し、浮いた分は組どうしの間隔にまわして境目をさらに分かりやすくした。"""
+        """[Z] ほる のように、キーを金色のキャップで描いて、そのあとにことばを置く。
+        キャップなら「押すキー」と「何が起きるか」が見た目で分かれる。"""
         for key, action in pairs:
-            text(x, y, key, 10)
-            x += text_w(key)
-            text(x, y, "→", 6)
-            x += text_w("→")
-            text(x, y, action, 6)
-            x += text_w(action) + 10
+            x += key_cap(x, y, key) + 3
+            text_o(x, y + 1, action, 7)
+            x += text_w(action) + 8
+
+    # 7x6 のハート。1 のところを塗る。まわりは黒でふちどる
+    _HEART = ("0110110", "1111111", "1111111", "0111110", "0011100", "0001000")
 
     @staticmethod
     def draw_heart(x, y, filled):
         c = 8 if filled else 5
-        pyxel.pset(x + 1, y, c)
-        pyxel.pset(x + 3, y, c)
-        pyxel.rect(x, y + 1, 5, 2, c)
-        pyxel.rect(x + 1, y + 3, 3, 1, c)
-        pyxel.pset(x + 2, y + 4, c)
+        for dy, row in enumerate(App._HEART):
+            for dx, ch in enumerate(row):
+                if ch == "1":
+                    for ox, oy in _OUTLINE_DIRS:
+                        pyxel.pset(x + dx + ox, y + dy + oy, 0)
+        for dy, row in enumerate(App._HEART):
+            for dx, ch in enumerate(row):
+                if ch == "1":
+                    pyxel.pset(x + dx, y + dy, c)
+        if filled:
+            pyxel.pset(x + 1, y + 1, 14)
+            pyxel.pset(x + 2, y + 1, 14)
 
     def draw_phantom_rows(self, ph):
         name = ph.name
-        text(4, ROW_PH1, name, 8 if (pyxel.frame_count // 8) % 2 == 0 else 14)
+        text_o(4, ROW_PH1, name, 14 if (pyxel.frame_count // 8) % 2 == 0 else 7)
         bx = 4 + text_w(name) + 6
         bw = SCREEN_W - bx - 52
-        pyxel.rect(bx, ROW_PH1 + 4, bw, 5, 1)
-        pyxel.rect(bx, ROW_PH1 + 4, max(0, int(bw * ph.hp_ratio)), 5, 8)
-        text_r(SCREEN_W - 4, ROW_PH1, f"{ph.hp_ratio * 100:.1f}%", 7)
+        pyxel.rect(bx - 1, ROW_PH1 + 2, bw + 2, 9, 0)
+        pyxel.rect(bx, ROW_PH1 + 3, bw, 7, 5)
+        hw = max(0, int(bw * ph.hp_ratio))
+        if hw > 0:
+            pyxel.rect(bx, ROW_PH1 + 3, hw, 7, 8)
+            pyxel.line(bx, ROW_PH1 + 3, bx + hw - 1, ROW_PH1 + 3, 14)
+        text_o_r(SCREEN_W - 4, ROW_PH1, f"{ph.hp_ratio * 100:.1f}%", 7)
 
         # 残り時間は数字で出さない。消える直前だけ警告し、あとは勘に任せる。
         if ph.remain_frames < PHANTOM_WARN_TIME and (pyxel.frame_count // 5) % 2 == 0:
-            text_center(SCREEN_W // 2, ROW_PH2, "気配が薄れてきた…！", 8)
+            text_o_center(SCREEN_W // 2, ROW_PH2, "気配が薄れてきた…！", 14)
 
     # --- ショップ -----------------------------------------------------------
     def draw_shop(self):
@@ -2551,16 +2639,22 @@ class App:
 
         x0, y0 = 10, 16
         w, h = SCREEN_W - 20, SCREEN_H - 34
-        pyxel.rect(x0, y0, w, h, 0)
-        pyxel.rectb(x0, y0, w, h, 7)
-        pyxel.rect(x0 + 1, y0 + 1, w - 2, 15, 1)
-        text(x0 + 5, y0 + 3, "坑道の魔女の館", 10)
-        text_r(x0 + w - 5, y0 + 3, f"お金 {fmt(p.gold)}", 10)
+        pyxel.rect(x0 + 2, y0 + 3, w, h, 0)          # 影
+        panel(x0, y0, w, h, 1, 0, 5)
+        pyxel.rect(x0 + 1, y0 + 1, w - 2, 15, 8)
+        pyxel.line(x0 + 1, y0 + 1, x0 + w - 2, y0 + 1, 14)
+        text_o(x0 + 6, y0 + 3, "まじょのおみせ", 7, 1)
+        gs = fmt(p.gold)
+        text_o_r(x0 + w - 6, y0 + 3, gs, 10, 1)
+        coin_x = x0 + w - 6 - text_w(gs) - 10
+        pyxel.circ(coin_x + 4, y0 + 8, 4, 0)
+        pyxel.circ(coin_x + 4, y0 + 8, 3, 10)
+        pyxel.pset(coin_x + 3, y0 + 6, 7)
 
         line = FLOORS[self.floor_index]["witch"]
         while text_w(line) > w - 10 and len(line) > 4:   # 長すぎる台詞は詰める
             line = line[:-2] + "…"
-        text(x0 + 5, y0 + 18, line, 14)
+        text_o(x0 + 6, y0 + 19, line, 14)
 
         row_h = 26
         y = y0 + 34
@@ -2570,19 +2664,25 @@ class App:
             idx = self.shop_scroll + i
             sel = (idx == self.shop_cursor)
             if sel:
-                pyxel.rect(x0 + 2, y - 2, w - 4, row_h - 2, 1)
-                text(x0 + 4, y, ">", 10)
+                pyxel.rect(x0 + 3, y - 3, w - 6, row_h - 1, 5)
+                pyxel.rectb(x0 + 3, y - 3, w - 6, row_h - 1, 12)
+                pyxel.line(x0 + 4, y - 2, x0 + w - 5, y - 2, 6)
+                # 選んでいる行を指す、はねる三角
+                ax = x0 + 6 + (pyxel.frame_count // 8) % 2
+                pyxel.tri(ax, y + 1, ax, y + 9, ax + 5, y + 5, 10)
 
             sold = it["price"] is None
             afford = (not sold) and p.gold >= it["price"]
-            name_col = 5 if sold else (it["col"] if sel else 6)
-            text(x0 + 14, y, it["label"], name_col)
-            text(x0 + 14, y + 12, it["sub"], 5 if (sold or not sel) else 13)
+            name_col = 13 if sold else (it["col"] if sel else 7)
+            if it["col"] in (1, 2, 4, 5) and sel and not sold:
+                name_col = 7          # 暗い色の品名は、選択中の青地に沈むので白にする
+            text_o(x0 + 15, y, it["label"], name_col, 1 if sel else 0)
+            text(x0 + 15, y + 12, it["sub"], 13 if sold else (7 if sel else 6))
 
             if sold:
-                text_r(x0 + w - 6, y, "---", 5)
+                text_o_r(x0 + w - 8, y, "売り切れ", 13)
             else:
-                text_r(x0 + w - 6, y, fmt_ceil(it["price"]), 10 if afford else 8)
+                text_o_r(x0 + w - 8, y, fmt_ceil(it["price"]), 10 if afford else 14)
             y += row_h
 
         # 画面外にまだ品物があることを、点滅する三角で知らせる
@@ -2602,34 +2702,73 @@ class App:
             pyxel.rect(x0 + w - 3, track_y, 2, track_h, 1)
             pyxel.rect(x0 + w - 3, bar_y, 2, bar_h, 13)
 
-        text_center(SCREEN_W // 2, y0 + h - 14, "[↑↓]えらぶ  [Z]かう  [S]とじる", 6)
+        pairs = (("↑↓", "えらぶ"), ("Z", "かう"), ("S", "とじる"))
+        self.draw_key_hints(SCREEN_W // 2 - self.key_hints_w(pairs) // 2, y0 + h - 17, pairs)
 
     # --- タイトル -----------------------------------------------------------
     def draw_title(self):
-        pyxel.cls(0)
-        for i in range(60):
-            pyxel.pset((i * 71 + pyxel.frame_count // 3) % SCREEN_W, (i * 37) % SCREEN_H, 1)
+        t = pyxel.frame_count
+        cx = SCREEN_W // 2
+        # 夜空。上ほど濃く、下へ行くほど青くなる
+        pyxel.cls(1)
+        pyxel.dither(0.5)
+        pyxel.rect(0, 70, SCREEN_W, 50, 5)
+        pyxel.dither(1.0)
+        pyxel.rect(0, 120, SCREEN_W, 110, 5)
+        pyxel.dither(0.5)
+        pyxel.rect(0, 120, SCREEN_W, 40, 12)
+        pyxel.dither(1.0)
+        # きらきらの星（十字）
+        for i in range(26):
+            x, y = (i * 83 + 11) % SCREEN_W, (i * 47 + 9) % 150
+            on = (t // 10 + i) % 6
+            if on == 0:
+                pyxel.pset(x, y, 7)
+                pyxel.pset(x - 1, y, 6); pyxel.pset(x + 1, y, 6)
+                pyxel.pset(x, y - 1, 6); pyxel.pset(x, y + 1, 6)
+            elif on < 4:
+                pyxel.pset(x, y, 6)
+        # 木の床
+        pyxel.rect(0, 218, SCREEN_W, SCREEN_H - 218, 4)
+        for i, y in enumerate(range(218, SCREEN_H, 10)):
+            pyxel.line(0, y, SCREEN_W, y, 2)
+            for x in range(-(i % 2) * 20, SCREEN_W, 40):
+                pyxel.line(x, y, x, y + 9, 2)
+        pyxel.line(0, 218, SCREEN_W, 218, 9)
 
-        text_big(SCREEN_W // 2, 40, "幻鉱", 10, scale=4)
-        text_center(SCREEN_W // 2, 100, "- M A B O R O S H I -", 13)
+        # ナポ（4倍）。ふわふわ上下する。足もとに影
+        bob = int(math.sin(t * 0.12) * 3)
+        pyxel.elli(cx - 22, 181, 44, 9, 1)
+        sprite_scaled(*SPR_MINER[0], 16, cx, 114 + bob, 4)
+        # まわりに鉱石。きらっと光る
+        for kind, ox, oy, ph in (("gold", -80, 128, 0), ("gem", 80, 124, 12), ("copper", -54, 154, 7), ("silver", 54, 156, 20)):
+            sprite_scaled(*SPR_ORE[kind], 16, cx + ox, oy + int(math.sin((t + ph * 5) * 0.1) * 2), 2)
+            if (t // 6 + ph) % 10 == 0:
+                sx, sy = cx + ox + 8, oy - 4
+                pyxel.line(sx - 3, sy, sx + 3, sy, 7)
+                pyxel.line(sx, sy - 3, sx, sy + 3, 7)
 
-        cx, cy = SCREEN_W // 2, 138
-        col, dark = (8, 2) if (pyxel.frame_count // 14) % 2 == 0 else (14, 1)
-        pyxel.circ(cx, cy, 16, dark)
-        pyxel.circ(cx, cy, 15, col)
-        rng = random.Random(99)
-        for _ in range(16):
-            a, d = rng.uniform(0, math.tau), rng.uniform(0, 10)
-            pyxel.pset(cx + math.cos(a) * d, cy + math.sin(a) * d, dark)
-        pyxel.pset(cx - 6, cy - 7, 7)
-        pyxel.pset(cx - 5, cy - 7, 7)
+        # タイトル。金とピンクのふち取り、波うつ
+        wave = int(math.sin(t * 0.08) * 2)
+        text_big_o(cx, 14 + wave, "ナポの幻鉱", 10, scale=3, oc=0, shadow=8)
+        text_o_center(cx, 66, "- M A B O R O S H I -", 14, 0)
 
-        text_center(SCREEN_W // 2, 168, "最深部に眠るという「幻の鉱石」。", 6)
-        text_center(SCREEN_W // 2, 182, "一攫千金を夢見て地下へ潜る。", 6)
+        text_o_center(cx, 84, "ピンクの髪の ナポが", 7)
+        text_o_center(cx, 97, "幻の鉱石をさがして ほりほり！", 7)
 
-        if (pyxel.frame_count // 15) % 2 == 0:
-            text_center(SCREEN_W // 2, 210, "[Z] ではじめる", 11)
-        text_center(SCREEN_W // 2, 236, "矢印:移動 Z:採掘 S:みせ M:BGM", 5)
+        # スタートボタン（金色＝押せる）
+        bw, bh = 132, 22
+        bx = cx - bw // 2
+        press = 1 if (t // 15) % 2 == 0 else 0
+        by = 192
+        pyxel.rect(bx, by + 2, bw, bh, 0)
+        pyxel.rect(bx, by + press, bw, bh, 10)
+        pyxel.rectb(bx, by + press, bw, bh, 0)
+        pyxel.line(bx + 1, by + 1 + press, bx + bw - 2, by + 1 + press, 7)
+        text_center(cx, by + 5 + press, "スタート  [Z]", 1)
+
+        text_o_center(cx, 232, "矢印:うごく  Z:ほる  S:おみせ  M:BGM", 7)
+        text_o_center(cx, 244, "ENTER / SPACE でも はじめられるよ", 6)
 
     # --- クリア -------------------------------------------------------------
     # クリア画面は上から順に立ち上げる。全部が同時に出ると結果表であって
@@ -2644,7 +2783,7 @@ class App:
 
         t = self.clear_frames
         cue = self.CLEAR_CUE
-        pyxel.cls(0)
+        pyxel.cls(1)
         for i in range(80):
             a = i * 0.7 + pyxel.frame_count * 0.04
             d = (pyxel.frame_count * 1.6 + i * 13) % 200
@@ -2656,10 +2795,10 @@ class App:
         col = 10 if (pyxel.frame_count // 8) % 2 == 0 else 7
         big_h = (FONT_H + 3) * 2
 
-        head1, head2, sub = "幻の鉱石を", "手に入れた！", "これだけあれば一生遊んで暮らせる！"
+        head1, head2, sub = "ナポは幻の鉱石を", "手に入れた！", "これでお菓子が食べほうだい！"
         if self.deep_end:
-            head1, head2 = "坑道の底まで", "掘りきった！"
-            sub = "こんな大金、使いきれるわけがない！"
+            head1, head2 = "ナポは坑道の底まで", "掘りきった！"
+            sub = "お金持ちすぎて ポケットがパンパン！"
         if self.completed:
             sub = "バッジ３つ ―― コンプリート！"
         if self.maxed:
@@ -2667,20 +2806,19 @@ class App:
             sub = f"Lv{MAX_LEVEL} ＆ バッジ３つ ―― 完全制覇！"
 
         if t >= cue["title1"]:
-            text_big(SCREEN_W // 2, 12, head1, col, scale=2)
+            text_big_o(SCREEN_W // 2, 6, head1, col, scale=2, oc=0, shadow=8)
         if t >= cue["title2"]:
-            text_big(SCREEN_W // 2, 12 + big_h, head2, col, scale=2)
+            text_big_o(SCREEN_W // 2, 6 + big_h, head2, col, scale=2, oc=0, shadow=8)
         if t >= cue["sub"]:
-            text_center(SCREEN_W // 2, 70, sub, 6)
+            text_o_center(SCREEN_W // 2, 70, sub, 7)
 
         box_y, box_h = 84, big_h + 4
         if t >= cue["box"]:
-            pyxel.rect(28, box_y, SCREEN_W - 56, box_h, 1)
+            pyxel.rect(28, box_y, SCREEN_W - 56, box_h, 5)
             pyxel.rectb(28, box_y, SCREEN_W - 56, box_h, 10)
-            # text_big は文字の上下に余白のある枠を転送するので、box_y+2 だと
-            # 文字そのものは 5px 上に寄って見える。実際のインク位置を測って合わせた。
-            text_big(56, box_y + 10, mark, 10, scale=2)
-            text_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
+            pyxel.line(29, box_y + 1, SCREEN_W - 30, box_y + 1, 12)
+            text_big_o(52, box_y + 4, mark, 10, scale=2, oc=0)
+            text_o_center(SCREEN_W // 2 + 14, box_y + (box_h - FONT_H) // 2, title, 10)
 
         rows = [
             ("クリアタイム" if not self.deep_end else "総プレイ時間",
@@ -2696,31 +2834,34 @@ class App:
             if t < cue["rows"] + i * 10:
                 break
             y = rows_top + i * 13
-            text(34, y, k, 6)
-            text(140, y, v, 7)
+            text_o(34, y, k, 6)
+            text_o(140, y, v, 7)
         hy = rows_top + len(rows) * 13 + 4
 
         if t >= cue["hint"]:
             blink = (pyxel.frame_count // 15) % 2 == 0
             if self.deep_end and not self.completed:
-                text_center(SCREEN_W // 2, hy, "バッジを３つ集めるとやりこみ解放", 13)
+                text_o_center(SCREEN_W // 2, hy, "バッジを３つ集めるとやりこみ解放", 13)
                 if blink:
-                    text_center(SCREEN_W // 2, hy + 13, "[Z] さいごまで見る", 11)
+                    text_o_center(SCREEN_W // 2, hy + 13, "[Z] さいごまで見る", 11)
             elif self.deep_end:
                 if blink:
-                    text_center(SCREEN_W // 2, hy + 4, "[Z] さいごまで見る", 11)
+                    text_o_center(SCREEN_W // 2, hy + 4, "[Z] さいごまで見る", 11)
             elif can_deep:
-                text_center(SCREEN_W // 2, hy, "Aランク！ ボーナスステージ解放", 10)
+                text_o_center(SCREEN_W // 2, hy, "Aランク！ ボーナスステージ解放", 10)
                 if blink:
-                    text_center(SCREEN_W // 2, hy + 13, "[Z] さらに下へ潜る", 11)
+                    text_o_center(SCREEN_W // 2, hy + 13, "[Z] さらに下へ潜る", 11)
             else:
-                text_center(SCREEN_W // 2, hy, f"{DEEP_GATE_SEC // 60}分以内でボーナス解放", 13)
+                text_o_center(SCREEN_W // 2, hy, f"{DEEP_GATE_SEC // 60}分以内でボーナス解放", 13)
 
         if t >= cue["prompt"]:
-            text_center(SCREEN_W // 2, 234, "[R] もう一度掘る", 6)
+            text_o_center(SCREEN_W // 2, 234, "[R] もう一度掘る", 6)
+            # ナポがよろこんで跳ねる
+            hop = abs(int(math.sin(pyxel.frame_count * 0.2) * 5))
+            sprite_scaled(*SPR_MINER[1], 16, 226, 196 - hop, 2)
 
     def draw_true_end(self):
-        pyxel.cls(0)
+        pyxel.cls(1)
         # 下へ落ちていく光の粒
         for i in range(70):
             x = (i * 53 + 17) % SCREEN_W
@@ -2728,23 +2869,23 @@ class App:
             pyxel.pset(x, y, 1 if i % 3 else 5)
 
         if self.deep_end:
-            text_center(SCREEN_W // 2, 22, "―― おしまい ――", 8)
+            text_o_center(SCREEN_W // 2, 22, "―― おしまい ――", 14)
             lines = [
                 "いちばん下まで掘ると、",
                 "そこは幻の鉱石だらけだった。",
                 "",
-                "大きな袋に詰めこんで、",
+                "ナポは大きな袋に詰めこんで、",
                 "鼻歌まじりで地上へのぼった。",
                 "",
-                "町じゅうの子どもに",
-                "お菓子をおごってやった。",
+                "町じゅうの みんなに",
+                "お菓子をふるまった。",
             ]
             if self.completed:
-                lines += ["", "バッジ３つ、たしかに持って帰った。"]
+                lines += ["", "バッジ３つ、ちゃんと持って帰った。"]
             if self.maxed:
                 lines += [f"Lv{MAX_LEVEL}。もう掘るものが なくなった。"]
         else:
-            text_center(SCREEN_W // 2, 22, "―― ボーナスステージ ――", 10)
+            text_o_center(SCREEN_W // 2, 22, "―― ボーナスステージ ――", 10)
             lines = [
                 "帰ろうとしたら、足もとの岩から",
                 "青白い光が漏れていた。",
@@ -2757,17 +2898,19 @@ class App:
                 "",
                 "気がすむまで ほりほりしよう。",
                 "",
-                "つるはしを握り直した。",
+                "ナポは つるはしを握り直した。",
             ]
         for i, s in enumerate(lines):
             if s:
-                text(22, 50 + i * 15, s, 10 if i == len(lines) - 1 else 7)
+                text_o(22, 50 + i * 15, s, 10 if i == len(lines) - 1 else 7)
 
+        hop = abs(int(math.sin(pyxel.frame_count * 0.2) * 5))
+        sprite_scaled(*SPR_MINER[1], 16, 226, 176 - hop, 2)
         if (pyxel.frame_count // 15) % 2 == 0:
             if self.deep_end:
-                text_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 11)
+                text_o_center(SCREEN_W // 2, 232, "[R] もう一度掘る", 11)
             else:
-                text_center(SCREEN_W // 2, 232, "[Z] さらに潜る    [R] もう一度掘る", 11)
+                text_o_center(SCREEN_W // 2, 232, "[Z] さらに潜る    [R] もう一度掘る", 11)
 
 
 if __name__ == "__main__":
